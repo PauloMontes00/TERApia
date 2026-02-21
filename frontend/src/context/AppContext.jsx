@@ -1,7 +1,11 @@
 import { createContext, useContext, useState } from 'react'
 
+/**
+ * AppContext: Coração do gerenciamento de estado global do Frontend.
+ * Em um cenário real, este arquivo faria chamadas HTTP para nossa API Express/PostgreSQL.
+ * Atualmente ele usa "Mock Data" (dados estáticos) para manter a interface funcionando fluida.
+ */
 const AppContext = createContext(null)
-
 // Mock data
 const MOCK_PROFESSIONALS = [
     {
@@ -105,23 +109,37 @@ const MOCK_PATIENTS = [
 ]
 
 export function AppProvider({ children }) {
+    // Estado principal que define qual "módulo" (Paciente ou Psicólogo) está sendo exibido na tela
     const [userType, setUserType] = useState(null) // 'patient' | 'professional'
+
+    // Estados Globais de Dados (futuras conexões com Prisma ORM)
     const [professionals] = useState(MOCK_PROFESSIONALS)
     const [matches, setMatches] = useState(MOCK_MATCHES)
     const [patients, setPatients] = useState(MOCK_PATIENTS)
+
+    // Fila de notificações que imita o comportamento do Socket.io de Tempo Real que fizemos no backend
     const [notifications, setNotifications] = useState([
         { id: 1, type: 'match', text: 'Você deu match com Dra. Camila Rocha!', read: false, time: '10 min' },
         { id: 2, type: 'session', text: 'Consulta com Dra. Camila amanhã às 10h', read: false, time: '2h' },
         { id: 3, type: 'match', text: 'Dr. Lucas aceitou seu match!', read: true, time: '1 dia' },
     ])
+
+    // Sistema global de Toasts (Avisos efêmeros no canto da tela)
     const [toasts, setToasts] = useState([])
 
+    /**
+     * Função auxiliar genérica para disparar Toasts visuais a partir de qualquer página.
+     * Ela insere na fila e apaga automaticamente após 3.5 segundos.
+     */
     const addToast = (message, type = 'info') => {
         const id = Date.now()
         setToasts(prev => [...prev, { id, message, type }])
         setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 3500)
     }
 
+    /**
+     * Funções que simulam as chamadas para o controller 'proController.respondToMatch' no Backend.
+     */
     const acceptPatient = (patientId) => {
         setPatients(prev => prev.map(p => p.id === patientId ? { ...p, pending: false, status: 'active' } : p))
         addToast('Match aceito! O paciente foi notificado.', 'success')
@@ -133,6 +151,7 @@ export function AppProvider({ children }) {
     }
 
     return (
+        // Provedor que "derrama" todas essas funções e variáveis para os componentes filhos (rotas)
         <AppContext.Provider value={{
             userType, setUserType,
             professionals, matches, setMatches,
@@ -145,6 +164,11 @@ export function AppProvider({ children }) {
     )
 }
 
+/**
+ * Hook Customizado (Atalho): `useApp()`
+ * Usado dentro das páginas (ex: Profile, Dashboard) para capturar imediatamente
+ * as funções do AppContext sem precisar rescrever o `useContext(AppContext)`.
+ */
 export function useApp() {
     const ctx = useContext(AppContext)
     if (!ctx) throw new Error('useApp must be used within AppProvider')
