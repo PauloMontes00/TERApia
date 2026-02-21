@@ -9,13 +9,23 @@ export default function LoginPage() {
     const [params] = useSearchParams()
     const { setUserType } = useApp()
     const [role, setRole] = useState(params.get('type') === 'pro' ? 'professional' : 'patient')
+    // Estado local para armazenar e-mail, senha e o toggle de visibilidade
     const [email, setEmail] = useState('')
     const [password, setPassword] = useState('')
     const [showPass, setShowPass] = useState(false)
 
+    /**
+     * Função acionada ao clicar em "Entrar".
+     * Atualmente NÃO envia os dados para o Backend. Na fase de Integração,
+     * aqui usaremos `axios.post('/api/auth/login', { email, password })`.
+     */
     const handleLogin = (e) => {
-        e.preventDefault()
+        e.preventDefault() // Impede recarregamento da página (comportamento padrão de Form)
+
+        // Simulação de Login MOCK: Guarda o papel escolhido da tela no Contexto Global
         setUserType(role)
+
+        // Redirecionamento condicional inteligente com base no tipo de usuário
         navigate(role === 'patient' ? '/patient/home' : '/pro/dashboard')
     }
 

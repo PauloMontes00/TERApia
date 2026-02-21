@@ -4,12 +4,25 @@ import { motion, useMotionValue, useTransform, AnimatePresence } from 'framer-mo
 import { X, Heart, Star, Filter, ChevronDown, MapPin } from 'lucide-react'
 import { useApp } from '../../context/AppContext'
 
+/**
+ * ProCard Component: Renderiza o cartão individual do profissional na tela de Swipe.
+ * Recebe se ele é o cartão "do topo" (isTop) para aplicar a física de arrastar (Drag).
+ */
 function ProCard({ pro, onLike, onPass, isTop }) {
+    // Hooks do Framer Motion para controlar a posição X do cartão enquanto ele é arrastado
     const x = useMotionValue(0)
+
+    // Transforma a posição X em Rotação (Efeito Tinder: inclina levemente ao arrastar)
     const rotate = useTransform(x, [-200, 200], [-20, 20])
+
+    // Controla a transparência das etiquetas 'LIKE' (verde) e 'PASS' (vermelho) baseado na distância
     const likeOpacity = useTransform(x, [30, 100], [0, 1])
     const passOpacity = useTransform(x, [-100, -30], [1, 0])
 
+    /**
+     * Gatilho disparado quando o usuário solta o cartão.
+     * Se arrastou mais de 100px pra direita ativa OnLike, pra esquerda OnPass.
+     */
     const handleDragEnd = (_, info) => {
         if (info.offset.x > 100) onLike()
         else if (info.offset.x < -100) onPass()
@@ -115,23 +128,40 @@ function ProCard({ pro, onLike, onPass, isTop }) {
 
 export default function SwipeScreen() {
     const navigate = useNavigate()
+    // Puxa as funções do contexto global: Lista de Profissionais, e funções para salvar Matches/Toasts
     const { professionals, matches, setMatches, addToast } = useApp()
+
+    // Indice atual de qual profissional estamos vendo na pilha de arrastos
     const [index, setIndex] = useState(0)
     const [showFilter, setShowFilter] = useState(false)
     const [history, setHistory] = useState([])
 
+    // Filtra array a partir do indice atual para evitar mapeamento desnecessário na "pilha"
     const remaining = professionals.slice(index)
-    const current = remaining[0]
-    const next = remaining[1]
+    const current = remaining[0]  // O que fica no topo, com evento de clique/arrasto
+    const next = remaining[1]     // O que fica logo atrás, borrado/menor
 
+    /**
+     * Função Disparada por (1) Swipe pra Direita ou (2) Clique no Botão Coração.
+     * Na integração com DB (Node) envia POST para o backend salvando intenção de Match.
+     */
     const handleLike = () => {
-        if (!current) return
+        if (!current) return // Trava de segurança
+
         setHistory(h => [...h, { pro: current, action: 'like' }])
+
+        // Simulação MOCK: Já cria um Match ativo automático
         setMatches(m => [...m, { ...current, matchDate: new Date().toISOString().split('T')[0], status: 'active', nextSession: null }])
-        addToast(`Você deu like em ${current.name}! 💚`, 'success')
+
+        addToast(`Você deu like em ${current.name}! 💚`, 'success') // Aviso visual limpo
+
+        // Passa a pilha adiante
         setIndex(i => i + 1)
     }
 
+    /**
+     * Função Disparada por Swipe Esquerda ou Botão X. Descarta silenciosamente o Card.
+     */
     const handlePass = () => {
         if (!current) return
         setHistory(h => [...h, { pro: current, action: 'pass' }])

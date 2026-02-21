@@ -32,18 +32,22 @@ import ProReports from './pages/professional/ProReports'
 // Style Guide
 import StyleGuide from './pages/StyleGuide'
 
+/**
+ * App Component: Ponto de entrada principal da Interface (Frontend).
+ * Define todas as rotas da aplicação separando as visões púbicas, de Paciente e Profissional.
+ */
 export default function App() {
   return (
     <AppProvider>
       <BrowserRouter>
         <Routes>
-          {/* Public */}
+          {/* Rotas Públicas: Qualquer usuário pode acessar sem estar logado */}
           <Route path="/" element={<LandingPage />} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
           <Route path="/style-guide" element={<StyleGuide />} />
 
-          {/* Patient */}
+          {/* Rotas do Paciente: Envelopadas pelo PatientLayout que contém a Sidebar de Navegação */}
           <Route path="/patient" element={<PatientLayout />}>
             <Route index element={<Navigate to="/patient/home" replace />} />
             <Route path="home" element={<PatientHome />} />
@@ -54,9 +58,10 @@ export default function App() {
             <Route path="notifications" element={<NotificationsPage />} />
             <Route path="profile" element={<PatientProfile />} />
           </Route>
+          {/* Sala de Vídeo do Paciente (Fora do Layout padrão para usar a tela cheia) */}
           <Route path="/patient/video" element={<VideoRoomPatient />} />
 
-          {/* Professional */}
+          {/* Rotas do Profissional: Envelopadas pelo ProLayout (Com Sidebar específica de Médico) */}
           <Route path="/pro" element={<ProLayout />}>
             <Route index element={<Navigate to="/pro/dashboard" replace />} />
             <Route path="dashboard" element={<ProDashboard />} />

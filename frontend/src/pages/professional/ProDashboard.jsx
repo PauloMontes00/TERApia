@@ -5,10 +5,15 @@ import { useApp } from '../../context/AppContext'
 
 export default function ProDashboard() {
     const navigate = useNavigate()
+    // Extrai pacientes vinculados a mim pelo Contexto e a função para aprova-los
     const { patients, acceptPatient, declinePatient } = useApp()
+
+    // Sistema dinâmico de Array: Divide a lista bruta (que virá do banco de dados Node)
+    // Em listas filtradas por status na mosca.
     const pending = patients.filter(p => p.pending)
     const active = patients.filter(p => !p.pending)
 
+    // Estrutura de Métricas Visuais mapeada dinamicamente pelo JSX depois
     const stats = [
         { label: 'Pacientes', value: active.length, icon: Users, color: '#4A8FD4', sub: '+2 este mês' },
         { label: 'Hoje', value: 3, icon: Calendar, color: '#52B788', sub: 'consultas' },
@@ -16,6 +21,7 @@ export default function ProDashboard() {
         { label: 'Faturamento', value: 'R$2.8k', icon: TrendingUp, color: '#7C3AED', sub: 'este mês' },
     ]
 
+    // Agenda diária: Na implementação com banco, faz get via GET '/api/appointments/me' no Node.js
     const todayAppts = [
         { time: '09:00', patient: 'João Silva', initials: 'JS', color: '#4A8FD4', status: 'confirmed' },
         { time: '10:30', patient: 'Carlos Eduardo', initials: 'CE', color: '#D97706', status: 'confirmed' },

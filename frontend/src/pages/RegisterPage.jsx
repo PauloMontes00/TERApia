@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { Activity, ArrowRight, ArrowLeft, Check, User, Stethoscope } from 'lucide-react'
 import { useApp } from '../context/AppContext'
 
+// Define de antemão um array de especialidades para médicos selecionarem
 const SPECIALTIES = ['Ansiedade', 'Depressão', 'Autoestima', 'Relacionamentos', 'Estresse', 'TDAH', 'TOC', 'Trauma', 'Família', 'Casal', 'Luto', 'Sexualidade']
 
 export default function RegisterPage() {
@@ -11,17 +12,30 @@ export default function RegisterPage() {
     const [params] = useSearchParams()
     const { setUserType } = useApp()
 
+    // Controla qual fluxo renderizar (null = escolhendo, 'patient' = Paciente, 'professional' = Médico)
     const [type, setType] = useState(params.get('type') === 'pro' ? 'professional' : null)
+
+    // Controle de Paginação (Formulário em Etapas / Multi-step Form)
     const [step, setStep] = useState(1)
+
+    // Estado unificado do Formulário - guarda tudo até enviar para a API no último passo
     const [form, setForm] = useState({ name: '', email: '', password: '', crp: '', bio: '', specialties: [], price: '' })
 
+    // Função auxiliar genérica para atualizar qualquer campo do Form
     const update = (field, val) => setForm(f => ({ ...f, [field]: val }))
+
+    // Toggle para arrays: adiciona a especialidade se não tiver, remove se já tiver
     const toggleSpec = (s) =>
         setForm(f => ({ ...f, specialties: f.specialties.includes(s) ? f.specialties.filter(x => x !== s) : [...f.specialties, s] }))
 
+    // Determina a quantidade de passos com base no tipo. Médicos precisam de mais informações que pacientes.
     const totalSteps = type === 'professional' ? 4 : 2
     const progress = (step / totalSteps) * 100
 
+    /**
+     * Função Finalizar Cadastro. Aqui, futuramente será feito um POST na `/api/auth/register`.
+     * Por enquanto (Mock), ele apenas limpa a tela e leva pro Dashboard correspondente.
+     */
     const finish = () => {
         setUserType(type)
         navigate(type === 'professional' ? '/pro/dashboard' : '/patient/home')
