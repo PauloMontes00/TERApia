@@ -29,7 +29,7 @@ export const authMiddleware = (req: AuthRequest, res: Response, next: NextFuncti
 };
 
 export const roleCheck = (roles: Array<'PATIENT' | 'PROFESSIONAL'>) => {
-    return (req: any, res: Response, next: NextFunction) => {
+    return (req: AuthRequest, res: Response, next: NextFunction) => {
         if (!req.user || !roles.includes(req.user.role)) {
             return res.status(403).json({ error: 'Access denied. Unauthorized role.' });
         }

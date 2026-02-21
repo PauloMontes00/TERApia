@@ -56,7 +56,7 @@ export class ClinicalNotesController {
                 orderBy: { createdAt: 'desc' },
             });
 
-            const decryptedNotes = notes.map(note => ({
+            const decryptedNotes = notes.map((note: any) => ({
                 ...note,
                 content: EncryptionService.decrypt(note.content),
             }));
