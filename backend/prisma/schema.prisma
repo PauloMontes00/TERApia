@@ -1,0 +1,112 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  PATIENT
+  PROFESSIONAL
+}
+
+enum MatchStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+}
+
+enum AppointmentStatus {
+  SCHEDULED
+  COMPLETED
+  CANCELLED
+}
+
+model User {
+  id              String   @id @default(uuid())
+  email           String   @unique
+  password        String
+  name            String
+  role            Role
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Profile data
+  avatar          String?
+  bio             String?
+  
+  // Professional specific
+  crp             String?
+  specialties     String[]
+  hourlyRate      Float?
+  rating          Float?   @default(0)
+  availability    Json?    // Stores working hours config
+
+  // Relations
+  swipesSent      Swipe[]       @relation("SwipesSent")
+  swipesReceived  Swipe[]       @relation("SwipesReceived")
+  matchesPatient  Match[]       @relation("MatchPatient")
+  matchesPro      Match[]       @relation("MatchPro")
+  apptsPatient    Appointment[] @relation("ApptPatient")
+  apptsPro        Appointment[] @relation("ApptPro")
+  notesWritten    Prontuario[]  @relation("NoteAuthor")
+  notesAbout      Prontuario[]  @relation("NoteSubject")
+}
+
+model Swipe {
+  id              String   @id @default(uuid())
+  fromId          String
+  toId            String
+  direction       String   // "LIKE" | "PASS"
+  createdAt       DateTime @default(now())
+
+  fromUser        User     @relation("SwipesSent", fields: [fromId], references: [id])
+  toUser          User     @relation("SwipesReceived", fields: [toId], references: [id])
+
+  @@unique([fromId, toId])
+}
+
+model Match {
+  id              String      @id @default(uuid())
+  patientId       String
+  professionalId  String
+  status          MatchStatus @default(PENDING)
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  patient         User        @relation("MatchPatient", fields: [patientId], references: [id])
+  professional    User        @relation("MatchPro", fields: [professionalId], references: [id])
+
+  @@unique([patientId, professionalId])
+}
+
+model Appointment {
+  id              String            @id @default(uuid())
+  patientId       String
+  professionalId  String
+  startTime       DateTime
+  endTime         DateTime
+  status          AppointmentStatus @default(SCHEDULED)
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  patient         User              @relation("ApptPatient", fields: [patientId], references: [id])
+  professional    User              @relation("ApptPro", fields: [professionalId], references: [id])
+}
+
+model Prontuario {
+  id              String   @id @default(uuid())
+  professionalId  String
+  patientId       String
+  content         String   // Encrypted content
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  professional    User     @relation("NoteAuthor", fields: [professionalId], references: [id])
+  patient         User     @relation("NoteSubject", fields: [patientId], references: [id])
+}
