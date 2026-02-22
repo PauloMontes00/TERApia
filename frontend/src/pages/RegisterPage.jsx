@@ -12,36 +12,39 @@ export default function RegisterPage() {
     const [params] = useSearchParams()
     const { setUserType } = useApp()
 
-    // Controla qual fluxo renderizar (null = escolhendo, 'patient' = Paciente, 'professional' = Médico)
+    // State Machine de Fluxo Onboarding: null (Pórtico), 'patient' ou 'professional'
     const [type, setType] = useState(params.get('type') === 'pro' ? 'professional' : null)
 
-    // Controle de Paginação (Formulário em Etapas / Multi-step Form)
+    // Controle de Progressão Linear (Wizard Pattern) aumentando a conversão na captura de Leads
     const [step, setStep] = useState(1)
 
-    // Estado unificado do Formulário - guarda tudo até enviar para a API no último passo
+    // Agregador de Payload (Form State)
+    // Coleta incremental via steps para construir o DTO final que será persistido via API
     const [form, setForm] = useState({ name: '', email: '', password: '', crp: '', bio: '', specialties: [], price: '' })
 
     // Função auxiliar genérica para atualizar qualquer campo do Form
     const update = (field, val) => setForm(f => ({ ...f, [field]: val }))
 
-    // Toggle para arrays: adiciona a especialidade se não tiver, remove se já tiver
+    // Manipulação Imutável de Estado Auxiliar para Arrays (Toggle Add/Remove)
     const toggleSpec = (s) =>
         setForm(f => ({ ...f, specialties: f.specialties.includes(s) ? f.specialties.filter(x => x !== s) : [...f.specialties, s] }))
 
-    // Determina a quantidade de passos com base no tipo. Médicos precisam de mais informações que pacientes.
+    // Motor de Gamificação / UX: Define dinamicamente o total de etapas baseada
+    // na jornada complexa do médico (KYC / Validacao CRP) contra a jornada simples do paciente.
     const totalSteps = type === 'professional' ? 4 : 2
     const progress = (step / totalSteps) * 100
 
     /**
-     * Função Finalizar Cadastro. Aqui, futuramente será feito um POST na `/api/auth/register`.
-     * Por enquanto (Mock), ele apenas limpa a tela e leva pro Dashboard correspondente.
+     * Submissão Fim-a-Fim do Cadastro
+     * Transaciona o `form` object em JSON para o Backend criar o Provisionamento.
+     * Concede o acesso imediato (Seamless Login) redirecionando para a Home específica da Persona.
      */
     const finish = () => {
         setUserType(type)
         navigate(type === 'professional' ? '/pro/dashboard' : '/patient/home')
     }
 
-    // Step 0 — choose type
+    // Step 0 — Pórtico de Decisão de Persona (Segmentação Inicial do Funil)
     if (!type) {
         return (
             <div style={{ minHeight: '100dvh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--color-bg)', padding: 'var(--sp-lg)' }}>

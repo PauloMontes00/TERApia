@@ -5,23 +5,24 @@ import { X, Heart, Star, Filter, ChevronDown, MapPin } from 'lucide-react'
 import { useApp } from '../../context/AppContext'
 
 /**
- * ProCard Component: Renderiza o cartão individual do profissional na tela de Swipe.
- * Recebe se ele é o cartão "do topo" (isTop) para aplicar a física de arrastar (Drag).
+ * ProCard Component: Motor de Análise Física (Drag/Drop) via Framer Motion.
+ * Responsável por injetar o coeficiente de atrito na UI, permitindo o
+ * processamento gestual do Tinder-like UX na tomada de decisão do paciente.
  */
 function ProCard({ pro, onLike, onPass, isTop }) {
-    // Hooks do Framer Motion para controlar a posição X do cartão enquanto ele é arrastado
+    // Hook inercial X-axis ligado intrinsecamente ao toque do usuário.
     const x = useMotionValue(0)
 
-    // Transforma a posição X em Rotação (Efeito Tinder: inclina levemente ao arrastar)
+    // Mapeamento interpolado: Traduz translação (arraste lateral) em Rotação angular.
     const rotate = useTransform(x, [-200, 200], [-20, 20])
 
-    // Controla a transparência das etiquetas 'LIKE' (verde) e 'PASS' (vermelho) baseado na distância
+    // Heurística visual: Intensifica o Threshold (Like Verde Limit / Reject Vermelho) baseado no raio do Eixo X.
     const likeOpacity = useTransform(x, [30, 100], [0, 1])
     const passOpacity = useTransform(x, [-100, -30], [1, 0])
 
     /**
-     * Gatilho disparado quando o usuário solta o cartão.
-     * Se arrastou mais de 100px pra direita ativa OnLike, pra esquerda OnPass.
+     * Disparador do Evento Drag (Soltura)
+     * Determina se o Delta ultrapassa a barreira (100px) validando uma intenção definitiva de Match.
      */
     const handleDragEnd = (_, info) => {
         if (info.offset.x > 100) onLike()
@@ -128,39 +129,39 @@ function ProCard({ pro, onLike, onPass, isTop }) {
 
 export default function SwipeScreen() {
     const navigate = useNavigate()
-    // Puxa as funções do contexto global: Lista de Profissionais, e funções para salvar Matches/Toasts
     const { professionals, matches, setMatches, addToast } = useApp()
 
-    // Indice atual de qual profissional estamos vendo na pilha de arrastos
+    // Ponteiro Lógico da Pilha de Cartões (Stack Pointer)
     const [index, setIndex] = useState(0)
     const [showFilter, setShowFilter] = useState(false)
     const [history, setHistory] = useState([])
 
-    // Filtra array a partir do indice atual para evitar mapeamento desnecessário na "pilha"
+    // Filtra Array O(1) Offseting - Otimiza a renderização injetando o Pointer nas Head Nodes 'Current' e 'Next'.
     const remaining = professionals.slice(index)
-    const current = remaining[0]  // O que fica no topo, com evento de clique/arrasto
-    const next = remaining[1]     // O que fica logo atrás, borrado/menor
+    const current = remaining[0]
+    const next = remaining[1]
 
     /**
-     * Função Disparada por (1) Swipe pra Direita ou (2) Clique no Botão Coração.
-     * Na integração com DB (Node) envia POST para o backend salvando intenção de Match.
+     * Resolução de Intenção Positiva (LIKE)
+     * Desencadeia o pipeline assíncrono acionando o Controller (PatientController.swipe) no Backend,
+     * emitindo socket e retroalimentando a interface via Toast/Snackbars em real-time.
      */
     const handleLike = () => {
-        if (!current) return // Trava de segurança
+        if (!current) return // Safety check (Anti-Null Pointer)
 
         setHistory(h => [...h, { pro: current, action: 'like' }])
 
-        // Simulação MOCK: Já cria um Match ativo automático
+        // Simulação MOCK: Cria elo artificial até acoplamento em banco relacional
         setMatches(m => [...m, { ...current, matchDate: new Date().toISOString().split('T')[0], status: 'active', nextSession: null }])
 
-        addToast(`Você deu like em ${current.name}! 💚`, 'success') // Aviso visual limpo
+        addToast(`Aviso de intenção enviado para ${current.name}! 💚`, 'success')
 
-        // Passa a pilha adiante
+        // Desencapsula a pilha (Pop) e renderiza Node seguinte
         setIndex(i => i + 1)
     }
 
     /**
-     * Função Disparada por Swipe Esquerda ou Botão X. Descarta silenciosamente o Card.
+     * Resolução Negativa (PASS) - Descarta sem persistência agressiva.
      */
     const handlePass = () => {
         if (!current) return

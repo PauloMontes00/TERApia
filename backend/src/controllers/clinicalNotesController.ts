@@ -5,17 +5,20 @@ import { EncryptionService } from '../services/encryptionService';
 
 export class ClinicalNotesController {
     /**
-     * Função 'createNote': Salva uma nova evolução clínica/anotação escrita pelo psicólogo.
-     * ⚠️ SEGURANÇA (LGPD): Pega o texto limpo, criptografa a nível de código antes de salvar no Banco.
+     * Registro de Prontuário Clínico (Clinical Evolution)
+     * Acesso restrito via RBAC (Apenas Role 'PROFESSIONAL').
+     * Conformidade LGPD (Dados Sensíveis): O conteúdo textual (SPI/PHI) é ofuscado
+     * por criptografia simétrica forte antes da persistência no Banco de Dados.
      */
     static async createNote(req: AuthRequest, res: Response) {
-        const proId = req.user?.id; // Somente médicos chegam aqui devido ao Middleware de Role
+        const proId = req.user?.id;
         const { patientId, content } = req.body;
 
         if (!proId) return res.status(401).json({ error: 'Unauthorized' });
 
         try {
-            // Regra Híbrida de Segurança: O psicólogo só pode escrever no prontuário de quem ele tem MATCH!
+            // Híbrido de Autorização (B-AC/RBAC): Garante que a anotação só é permitida 
+            // no escopo de um Vínculo Terapêutico (Match Ativo = ACCEPTED).
             const match = await prisma.match.findUnique({
                 where: {
                     patientId_professionalId: {
@@ -29,10 +32,10 @@ export class ClinicalNotesController {
                 return res.status(403).json({ error: 'Unauthorized to write notes for this patient' });
             }
 
-            // [LÓGICA CORE DE LGPD]: Passa o conteúdo sensível pelo Serviço de Criptografia AES-256-GCM
+            // [NÚCLEO HIPAA/LGPD]: Cifragem AES-256-GCM antes do envio ao SGBD.
+            // O DBA não consegue, ao analisar as tabelas, ler o conteúdo puro.
             const encryptedContent = EncryptionService.encrypt(content);
 
-            // Banco de dados guarda apenas o hash/texto ininteligível
             const note = await prisma.prontuario.create({
                 data: {
                     professionalId: proId,
@@ -41,7 +44,7 @@ export class ClinicalNotesController {
                 },
             });
 
-            // Devolve sucesso, mas não retorna o conteúdo real da rede por segurança imediata.
+            // Evita devolução do dado cru na rede imediatamente após a criação
             res.status(201).json({ ...note, content: '[ENCRYPTED]' });
         } catch (err) {
             res.status(500).json({ error: 'Failed to create clinical note' });
@@ -49,8 +52,9 @@ export class ClinicalNotesController {
     }
 
     /**
-     * Função 'getPatientNotes': Busca todo o histórico de um paciente específico para a tela do psicólogo.
-     * Retira do banco criptografado, e executa a Decriptação Dinâmica antes de enviar de volta.
+     * Histórico Clínico (Health Records Fetch)
+     * Resgata a tabela criptografada e realiza decifragem dinâmica (In-Memory)
+     * para re-apresentar os laudos textuais originais ao profissional logado.
      */
     static async getPatientNotes(req: AuthRequest, res: Response) {
         const proId = req.user?.id;
@@ -59,7 +63,6 @@ export class ClinicalNotesController {
         if (!proId) return res.status(401).json({ error: 'Unauthorized' });
 
         try {
-            // Traz as anotações do mais recente (desc) para o mais antigo de um elo específico (pro -> patient)
             const notes = await prisma.prontuario.findMany({
                 where: {
                     professionalId: proId as string,
@@ -68,13 +71,12 @@ export class ClinicalNotesController {
                 orderBy: { createdAt: 'desc' },
             });
 
-            // Mapa de processamento de array: Para cada nota que vier do banco, roda a chave Mestra para ler texto legível
+            // Decifragem O(N): Executado estritamente para laudos pertinentes.
             const decryptedNotes = notes.map((note: any) => ({
                 ...note,
                 content: EncryptionService.decrypt(note.content),
             }));
 
-            // Envia para o painel de anotações do Frontend
             res.status(200).json(decryptedNotes);
         } catch (err) {
             res.status(500).json({ error: 'Failed to fetch clinical notes' });

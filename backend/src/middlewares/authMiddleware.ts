@@ -10,6 +10,11 @@ export interface AuthRequest extends Request {
     };
 }
 
+/**
+ * Filtro de Extração Identity (JWT Verification):
+ * Processa cabeçalho Authorization do padrão Bearer interceptando as APIs privadas.
+ * Em vulnerabilidades (Token expirado/Forjado), corta a requisição mantendo estanque a malha da rede.
+ */
 export const authMiddleware = (req: AuthRequest, res: Response, next: NextFunction) => {
     const authHeader = req.headers.authorization;
 
@@ -21,13 +26,18 @@ export const authMiddleware = (req: AuthRequest, res: Response, next: NextFuncti
 
     try {
         const decoded = jwt.verify(token, JWT_SECRET) as { id: string; role: 'PATIENT' | 'PROFESSIONAL' };
-        req.user = decoded;
+        req.user = decoded; // Injeção transacional - Repassada nativamente para as chamadas seguintes (Controllers).
         next();
     } catch (err) {
         return res.status(401).json({ error: 'Invalid or expired token' });
     }
 };
 
+/**
+ * Guardião RBAC (Role-Based Access Control):
+ * Função de Ordem Superior acionada especificando Arrays de Papéis permitidos.
+ * Bloqueia um Paciente tentando, por exemplo, escrever um Laudo (Privilégio do Psicólogo).
+ */
 export const roleCheck = (roles: Array<'PATIENT' | 'PROFESSIONAL'>) => {
     return (req: AuthRequest, res: Response, next: NextFunction) => {
         if (!req.user || !roles.includes(req.user.role)) {

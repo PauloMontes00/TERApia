@@ -4,25 +4,24 @@ import { AuthRequest } from '../middlewares/authMiddleware';
 
 export class ProController {
     /**
-     * Função 'updateProfile': Permite que o profissional atualize sua vitrine.
-     * Recebe dados como biografia, especialidades, valor da hora e agenda disponível.
+     * Gestão de Vitrine Profissional (Profile Management)
+     * Atualização do perfil público e disponibilidade.
+     * Segurança: O `proId` via JWT impossibilita edição não autorizada de perfis terceiros.
      */
     static async updateProfile(req: AuthRequest, res: Response) {
-        // Pega o ID do profissional logado direto do Token JWT para garantir segurança
         const proId = req.user?.id;
         const { bio, specialties, hourlyRate, availability } = req.body;
 
         if (!proId) return res.status(401).json({ error: 'Unauthorized' });
 
         try {
-            // Atualiza o registro do usuário na tabela do banco de dados
             const updatedUser = await prisma.user.update({
                 where: { id: proId },
                 data: {
                     bio,
                     specialties,
                     hourlyRate,
-                    // Se a agenda for enviada, garante que seja convertida corretamente em JSON
+                    // Conversão de estrutural JSONB (PostgreSQL/Prisma) para flexbilidade de agenda
                     availability: availability ? JSON.parse(JSON.stringify(availability)) : undefined,
                 },
             });
@@ -34,21 +33,20 @@ export class ProController {
     }
 
     /**
-     * Função 'getPendingMatches': Lista os pacientes que deram 'LIKE' neste profissional.
-     * Faz um JOIN (include) com a tabela User para trazer os dados básicos do paciente (nome, foto, bio).
+     * Consulta de Intentos (Pending Matches)
+     * Recupera os pacientes interessados. Utilizamos projeção Prisma (`select`) dentro
+     * da associação (`include`) para suprimir a senha do paciente trafegando para o fronte.
      */
     static async getPendingMatches(req: AuthRequest, res: Response) {
         const proId = req.user?.id;
         if (!proId) return res.status(401).json({ error: 'Unauthorized' });
 
         try {
-            // Busca na tabela Match onde o profissional é o logado e o status ainda é 'PENDING'
             const matches = await prisma.match.findMany({
                 where: {
                     professionalId: proId,
                     status: 'PENDING',
                 },
-                // Include traz os dados da tabela relacionada (semelhante ao SQL JOIN)
                 include: {
                     patient: {
                         select: {
@@ -68,23 +66,23 @@ export class ProController {
     }
 
     /**
-     * Função 'respondToMatch': Permite ao profissional aceitar ou recusar um paciente.
-     * Emite um alerta em tempo real via WebSocket para o paciente com o resultado.
+     * Resolução de Match (Match Resolution)
+     * Confirmação ou rejeição do elo terapêutico.
+     * Atualiza o estado da base e emite um evento duplex de Feedback via WebSockets para
+     * a Room privada do Paciente.
      */
     static async respondToMatch(req: AuthRequest, res: Response) {
-        const { matchId, status } = req.body; // status recebido: ACCEPTED | DECLINED
+        const { matchId, status } = req.body; // Aceita: ACCEPTED | DECLINED
         const proId = req.user?.id;
 
         if (!proId) return res.status(401).json({ error: 'Unauthorized' });
 
         try {
-            // Atualiza o status do Match na tabela
             const match = await prisma.match.update({
                 where: { id: matchId },
                 data: { status },
             });
 
-            // Comunicação Real-time: Avisa ao paciente (emitindo pra sala com ID dele) sobre a decisão
             io.to(match.patientId).emit('match_status_update', {
                 matchId,
                 status,

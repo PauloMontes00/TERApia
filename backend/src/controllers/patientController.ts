@@ -4,9 +4,10 @@ import { AuthRequest } from '../middlewares/authMiddleware';
 
 export class PatientController {
     /**
-     * Função 'discover': Responsável por listar profissionais para o paciente "Swipar".
-     * Busca no banco de dados todos os usuários com a role 'PROFESSIONAL' e seleciona
-     * apenas os campos públicos necessários para montar os cartões na tela do aplicativo.
+     * Descoberta de Profissionais (Discovery Algorithm)
+     * Retorna a vitrine pública de profissionais disponíveis. A extração vertical `select`
+     * foca em minimizar o payload e suprimir dados sensíveis da tabela User.
+     * Potencial evolução: Inserir filtros de indexação baseados na especialidade e disponibilidade real.
      */
     static async discover(req: AuthRequest, res: Response) {
         try {
@@ -27,25 +28,25 @@ export class PatientController {
 
             res.status(200).json(professionals);
         } catch (err) {
-            // Se o banco falhar, devolve erro genérico 500
             res.status(500).json({ error: 'Failed to fetch professionals' });
         }
     }
 
     /**
-     * Função 'swipe': Registra a ação de "Like" ou "Pass" do paciente num profissional.
-     * Caso a direção seja "LIKE", também cria automaticamente uma intenção de Match (PENDING)
-     * e dispara um evento via WebSockets para notificar o médico instantaneamente.
+     * Interação Dirigida (Swipe/Matchmaking)
+     * Processa a intenção de match. O `patientId` é obrigatoriamente extraído do token (JWT)
+     * impedindo ataques IDOR onde um usuário poderia forjar likes em nome de terceiros.
+     *
+     * Arquitetura Event-Driven: Em caso de 'LIKE', cria-se um elo PENDING assíncrono e propaga-se
+     * o evento via Socket.IO para notificação em Real-Time do profissional.
      */
     static async swipe(req: AuthRequest, res: Response) {
-        // Recebe para quem o swipe foi direcionado e se foi LIKE ou PASS
         const { toProfessionalId, direction } = req.body;
-        const patientId = req.user?.id; // ID temporalizado puxado do Token JWT pelo Middleware
+        const patientId = req.user?.id;
 
         if (!patientId) return res.status(401).json({ error: 'Unauthorized' });
 
         try {
-            // Registra a ação na tabela Swipe do banco de dados (guardando histórico de interesses)
             const swipe = await prisma.swipe.create({
                 data: {
                     fromId: patientId,
@@ -55,24 +56,21 @@ export class PatientController {
             });
 
             if (direction === 'LIKE') {
-                // Como houve interesse mútuo ou interesse inicial do paciente, cria um Match PENDENTE
                 const match = await prisma.match.create({
                     data: {
                         patientId,
                         professionalId: toProfessionalId,
-                        status: 'PENDING', // O médico ainda precisa aceitar ou declinar
+                        status: 'PENDING',
                     },
                 });
 
-                // Aqui acontece a mágica do TEMPO REAL 🚀
-                // Envia uma mensagem pela conexão Socket para a 'sala' designada ao profissional
+                // Propagação do evento WebSocket (Room restrita pelo ID do Médico)
                 io.to(toProfessionalId).emit('new_pending_match', {
                     matchId: match.id,
-                    patientId, // Permite ao front-end médico buscar os dados e mostrar o alerta Push
+                    patientId,
                 });
             }
 
-            // Devolve sucesso na gravação
             res.status(201).json(swipe);
         } catch (err) {
             res.status(500).json({ error: 'Failed to record swipe' });

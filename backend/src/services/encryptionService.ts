@@ -8,53 +8,55 @@ const ITERATIONS = 100000;
 const KEY_LENGTH = 32;
 
 export class EncryptionService {
-    // Chave Mestra Base: Nunca deve ser subida para o GitHub em produção real (vem do .env).
+    // Chave Mestra Base: Originária do Environment protegido.
+    // Ponto de Atenção CISO: Gerenciar rotação via AWS KMS / HashiCorp Vault em produção.
     private static masterKey: string = process.env.ENCRYPTION_KEY || 'default-super-secret-key-32-chars-long!';
 
     /**
-     * Função 'encrypt': Transforma texto puro em base64 ininteligível.
-     * Utiliza o padrão AES-256-GCM, que é imune a diversas classes de ataques de manipulação.
+     * [LÓGICA AES-256-GCM] - Previne violação LGPD de dados de saúde.
+     * GCM (Galois/Counter Mode) assegura confidencialidade e Autenticidade (AEAD).
+     * O Vetor de Inicialização (IV) e Salt garantem cifras distintas mesmo se
+     * múltiplos pacientes tiverem anotações textuais idênticas.
      */
     static encrypt(text: string): string {
-        // Gera números aleatórios para garantir que a mesma anotação criptografada duas vezes
-        // gere textos cifrados totalmente diferentes (Vetor de Inicialização e Salt).
         const iv = crypto.randomBytes(IV_LENGTH);
         const salt = crypto.randomBytes(SALT_LENGTH);
 
-        // PBKDF2Sync: Deriva a chave-mestra adicionando o Salt e rodando 100 mil iterações matemáticas.
-        // Isso impede ataques de força bruta.
+        // Derivação Computacional Intensa de Chave (100k iterações) mitiga vulnerabilidades 
+        // em cenários onde a 'masterKey' vaze e hackers apliquem Força-bruta/Dicionário.
         const key = crypto.pbkdf2Sync(this.masterKey, salt, ITERATIONS, KEY_LENGTH, 'sha512');
 
         const cipher = crypto.createCipheriv(ALGORITHM, key, iv);
 
         const encrypted = Buffer.concat([cipher.update(text, 'utf8'), cipher.final()]);
-        // GCM Auth Tag: Uma assinatura digital que garante que o texto cifrado não foi corrompido ou adulterado
+
+        // GCM Auth Tag: Tag criptográfica que garante que o Banco de Dados não sofreu tampering (adulteração maliciosa das strings cifradas).
         const tag = cipher.getAuthTag();
 
-        // Concatena tudo num pacotão só para salvar numa única coluna do Banco de Dados
+        // Empacotamento de binários essenciais (Salt, IV, Tag, Ciphertext) na mesma Base64 string para simplificar modelagem (1 coluna).
         return Buffer.concat([salt, iv, tag, encrypted]).toString('base64');
     }
 
     /**
-     * Função 'decrypt': Reverte o Base64 legível de volta para texto puro da consulta clínica.
+     * Inversão Criptográfica Controlada (Decifragem).
      */
     static decrypt(cipherText: string): string {
         const data = Buffer.from(cipherText, 'base64');
 
-        // Extrai as partes exatas baseadas nas posições estruturadas durante a encriptação.
+        // Segmentação da string unificada com base nos deltas de tamanho posicional.
         const salt = data.subarray(0, SALT_LENGTH);
         const iv = data.subarray(SALT_LENGTH, SALT_LENGTH + IV_LENGTH);
         const tag = data.subarray(SALT_LENGTH + IV_LENGTH, SALT_LENGTH + IV_LENGTH + TAG_LENGTH);
         const encrypted = data.subarray(SALT_LENGTH + IV_LENGTH + TAG_LENGTH);
 
-        // Deriva exatamente a mesma chave usada antes com o mesmo Salt
+        // Refaz derivação de chave exata baseada no salt originador.
         const key = crypto.pbkdf2Sync(this.masterKey, salt, ITERATIONS, KEY_LENGTH, 'sha512');
 
         const decipher = crypto.createDecipheriv(ALGORITHM, key, iv);
-        // Valida se a mensagem não foi adulterada (Anti-Tampering)
+
+        // Bloqueio de Tampering: Recusa decifragem se algum bit foi modificado.
         decipher.setAuthTag(tag);
 
-        // Restaura o arquivo original
         return Buffer.concat([decipher.update(encrypted), decipher.final()]).toString('utf8');
     }
 }

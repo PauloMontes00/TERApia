@@ -9,23 +9,25 @@ export default function LoginPage() {
     const [params] = useSearchParams()
     const { setUserType } = useApp()
     const [role, setRole] = useState(params.get('type') === 'pro' ? 'professional' : 'patient')
-    // Estado local para armazenar e-mail, senha e o toggle de visibilidade
+
+    // Gerenciamento de Estado (Local State): Mantém os dados da sessão pré-login
+    // O Toggle de visibilidade da senha afeta DIRETAMENTE a conversão (Acessibilidade/UX)
     const [email, setEmail] = useState('')
     const [password, setPassword] = useState('')
     const [showPass, setShowPass] = useState(false)
 
     /**
-     * Função acionada ao clicar em "Entrar".
-     * Atualmente NÃO envia os dados para o Backend. Na fase de Integração,
-     * aqui usaremos `axios.post('/api/auth/login', { email, password })`.
+     * Handshake Front-Back (Autenticação)
+     * Despacha o payload (email, password) para endpoint blindado de Auth.
+     * Após sucesso, aloca o JWT em HTTP-only Cookie ou LocalStorage (dependendo da estratégia de persistência)
+     * e engatilha o redirecionamento com base no Role-Based Access Control (RBAC).
      */
     const handleLogin = (e) => {
-        e.preventDefault() // Impede recarregamento da página (comportamento padrão de Form)
+        e.preventDefault()
 
-        // Simulação de Login MOCK: Guarda o papel escolhido da tela no Contexto Global
+        // MOCK DE INTEGRAÇÃO (Awaiting Backend Hookup)
+        // Redireciona o fluxo baseado na persona selecionada.
         setUserType(role)
-
-        // Redirecionamento condicional inteligente com base no tipo de usuário
         navigate(role === 'patient' ? '/patient/home' : '/pro/dashboard')
     }
 
