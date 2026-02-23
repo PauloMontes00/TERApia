@@ -11,7 +11,7 @@ O modelo central foi arquitetado pensando em **Privacidade by-Design**, aderênc
 A base de código deste repositório constitui o Sistema Web contendo:
 
 1. **Frontend (App Web)**: SPA desenvolvida em **React** (Vite), gerenciamento global via Context API e Animações complexas gestuais usando Framer Motion. Desenvolvido para altíssima conversão de funil de cadastro.
-2. **Backend (Core API)**: Servidor escalável em **Node.js (TypeScript)**. Persistência de dados relacional (PostgreSQL) automatizada via **Prisma ORM**.
+2. **Backend (Core API)**: Servidor escalável em **Node.js (TypeScript)**. Persistência de dados relacional (PostgreSQL) via queries SQL ou drivers nativos.
 3. **Comunicação Duplex**: Infraestrutura **Event-Driven via Socket.io** para emitir notificações de 'Match' em tempo real.
 
 *(Nota da Infraestrutura: Componentes como Flutter para o Mobile, sinalização descentralizada no Redis e o Motor WebRTC de vídeo do Agora.io são abstrações de evolução arquitetural projetados para a próxima release estrutural).*

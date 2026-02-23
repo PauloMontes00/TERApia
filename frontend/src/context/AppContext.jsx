@@ -112,7 +112,7 @@ export function AppProvider({ children }) {
     // Estado principal que define qual "módulo" (Paciente ou Psicólogo) está sendo exibido na tela
     const [userType, setUserType] = useState(null) // 'patient' | 'professional'
 
-    // Estados Globais de Dados (futuras conexões com Prisma ORM)
+    // Estados Globais de Dados (futuras conexões com o backend)
     const [professionals] = useState(MOCK_PROFESSIONALS)
     const [matches, setMatches] = useState(MOCK_MATCHES)
     const [patients, setPatients] = useState(MOCK_PATIENTS)

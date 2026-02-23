@@ -1,5 +1,6 @@
 import { Response } from 'express';
-import { prisma, io } from '../index';
+import { io } from '../index';
+import { query } from '../config/db';
 import { AuthRequest } from '../middlewares/authMiddleware';
 
 export class ProController {
@@ -15,18 +16,12 @@ export class ProController {
         if (!proId) return res.status(401).json({ error: 'Unauthorized' });
 
         try {
-            const updatedUser = await prisma.user.update({
-                where: { id: proId },
-                data: {
-                    bio,
-                    specialties,
-                    hourlyRate,
-                    // Conversão de estrutural JSONB (PostgreSQL/Prisma) para flexbilidade de agenda
-                    availability: availability ? JSON.parse(JSON.stringify(availability)) : undefined,
-                },
-            });
-
-            res.status(200).json(updatedUser);
+            const vals = [bio || null, specialties || null, hourlyRate || null, availability ? JSON.stringify(availability) : null, proId];
+            const resUpd = await query(
+                `UPDATE users SET bio = $1, specialties = $2, "hourlyRate" = $3, availability = $4, "updatedAt" = now() WHERE id = $5 RETURNING *`,
+                vals,
+            );
+            res.status(200).json(resUpd.rows[0]);
         } catch (err) {
             res.status(500).json({ error: 'Failed to update profile' });
         }
@@ -34,7 +29,7 @@ export class ProController {
 
     /**
      * Consulta de Intentos (Pending Matches)
-     * Recupera os pacientes interessados. Utilizamos projeção Prisma (`select`) dentro
+    * Recupera os pacientes interessados. Utilizamos projeção (`select`) dentro
      * da associação (`include`) para suprimir a senha do paciente trafegando para o fronte.
      */
     static async getPendingMatches(req: AuthRequest, res: Response) {
@@ -42,24 +37,12 @@ export class ProController {
         if (!proId) return res.status(401).json({ error: 'Unauthorized' });
 
         try {
-            const matches = await prisma.match.findMany({
-                where: {
-                    professionalId: proId,
-                    status: 'PENDING',
-                },
-                include: {
-                    patient: {
-                        select: {
-                            id: true,
-                            name: true,
-                            avatar: true,
-                            bio: true,
-                        },
-                    },
-                },
-            });
-
-            res.status(200).json(matches);
+            const resMatches = await query(
+                `SELECT m.*, u.id as patient_id, u.name as patient_name, u.avatar as patient_avatar, u.bio as patient_bio
+                 FROM matches m JOIN users u ON u.id = m."patientId" WHERE m."professionalId" = $1 AND m.status = $2`,
+                [proId, 'PENDING'],
+            );
+            res.status(200).json(resMatches.rows);
         } catch (err) {
             res.status(500).json({ error: 'Failed to fetch pending matches' });
         }
@@ -78,17 +61,12 @@ export class ProController {
         if (!proId) return res.status(401).json({ error: 'Unauthorized' });
 
         try {
-            const match = await prisma.match.update({
-                where: { id: matchId },
-                data: { status },
-            });
-
-            io.to(match.patientId).emit('match_status_update', {
-                matchId,
-                status,
-                professionalId: proId,
-            });
-
+            const resUpd = await query(
+                `UPDATE matches SET status = $1, "updatedAt" = now() WHERE id = $2 RETURNING *`,
+                [status, matchId],
+            );
+            const match = resUpd.rows[0];
+            io.to(match.patientId).emit('match_status_update', { matchId, status, professionalId: proId });
             res.status(200).json(match);
         } catch (err) {
             res.status(500).json({ error: 'Failed to respond to match' });

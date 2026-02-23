@@ -3,7 +3,7 @@ import http from 'http';
 import { Server } from 'socket.io';
 import cors from 'cors';
 import dotenv from 'dotenv';
-import { PrismaClient } from '@prisma/client';
+import './config/db';
 
 import authRoutes from './routes/authRoutes';
 import patientRoutes from './routes/patientRoutes';
@@ -21,7 +21,7 @@ const io = new Server(server, {
     },
 });
 
-const prisma = new PrismaClient();
+// db is available via imports from './config/db'
 
 app.use(cors());
 app.use(express.json());
@@ -57,4 +57,4 @@ server.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
 });
 
-export { io, prisma };
+export { io };

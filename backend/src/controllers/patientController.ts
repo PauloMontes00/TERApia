@@ -1,5 +1,7 @@
 import { Response } from 'express';
-import { prisma, io } from '../index'; // io é a instância do Socket.io para comunicação em tempo real
+import { io } from '../index'; // io é a instância do Socket.io para comunicação em tempo real
+import { query } from '../config/db';
+import { v4 as uuidv4 } from 'uuid';
 import { AuthRequest } from '../middlewares/authMiddleware';
 
 export class PatientController {
@@ -11,22 +13,11 @@ export class PatientController {
      */
     static async discover(req: AuthRequest, res: Response) {
         try {
-            const professionals = await prisma.user.findMany({
-                where: {
-                    role: 'PROFESSIONAL',
-                },
-                select: {
-                    id: true,
-                    name: true,
-                    avatar: true,
-                    bio: true,
-                    specialties: true,
-                    hourlyRate: true,
-                    rating: true,
-                },
-            });
-
-            res.status(200).json(professionals);
+            const resPros = await query(
+                'SELECT id, name, avatar, bio, specialties, "hourlyRate", rating FROM users WHERE role = $1',
+                ['PROFESSIONAL'],
+            );
+            res.status(200).json(resPros.rows);
         } catch (err) {
             res.status(500).json({ error: 'Failed to fetch professionals' });
         }
@@ -47,31 +38,24 @@ export class PatientController {
         if (!patientId) return res.status(401).json({ error: 'Unauthorized' });
 
         try {
-            const swipe = await prisma.swipe.create({
-                data: {
-                    fromId: patientId,
-                    toId: toProfessionalId,
-                    direction,
-                },
-            });
+            const swipeId = uuidv4();
+            const now = new Date().toISOString();
+            const swipeRes = await query(
+                'INSERT INTO swipes(id, "fromId", "toId", direction, "createdAt") VALUES($1,$2,$3,$4,$5) RETURNING *',
+                [swipeId, patientId, toProfessionalId, direction, now],
+            );
 
             if (direction === 'LIKE') {
-                const match = await prisma.match.create({
-                    data: {
-                        patientId,
-                        professionalId: toProfessionalId,
-                        status: 'PENDING',
-                    },
-                });
+                const matchId = uuidv4();
+                const matchRes = await query(
+                    'INSERT INTO matches(id, "patientId", "professionalId", status, "createdAt", "updatedAt") VALUES($1,$2,$3,$4,now(),now()) RETURNING *',
+                    [matchId, patientId, toProfessionalId, 'PENDING'],
+                );
 
-                // Propagação do evento WebSocket (Room restrita pelo ID do Médico)
-                io.to(toProfessionalId).emit('new_pending_match', {
-                    matchId: match.id,
-                    patientId,
-                });
+                io.to(toProfessionalId).emit('new_pending_match', { matchId: matchRes.rows[0].id, patientId });
             }
 
-            res.status(201).json(swipe);
+            res.status(201).json(swipeRes.rows[0]);
         } catch (err) {
             res.status(500).json({ error: 'Failed to record swipe' });
         }

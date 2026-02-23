@@ -1,5 +1,6 @@
 import { Response } from 'express';
-import { prisma } from '../index';
+import { query } from '../config/db';
+import { v4 as uuidv4 } from 'uuid';
 import { AuthRequest } from '../middlewares/authMiddleware';
 
 export class AppointmentController {
@@ -15,33 +16,25 @@ export class AppointmentController {
         if (!patientId) return res.status(401).json({ error: 'Unauthorized' });
 
         try {
-            // Check if match exists and is accepted (Regra de Negócio Crucial)
-            const match = await prisma.match.findUnique({
-                where: {
-                    // Busca através do índice composto
-                    patientId_professionalId: {
-                        patientId,
-                        professionalId,
-                    },
-                },
-            });
+            // Check if match exists and is accepted
+            const matchRes = await query(
+                'SELECT * FROM matches WHERE "patientId" = $1 AND "professionalId" = $2 LIMIT 1',
+                [patientId, professionalId],
+            );
+            const match = matchRes.rows[0];
 
-            // Bloqueia tentativas de agendamento se não são match ou se o pro recusou
             if (!match || match.status !== 'ACCEPTED') {
                 return res.status(403).json({ error: 'Must have an accepted match to book' });
             }
 
-            // Cria o registro na tabela Agenda efetivando o compromisso
-            const appointment = await prisma.appointment.create({
-                data: {
-                    patientId,
-                    professionalId,
-                    startTime: new Date(startTime),
-                    endTime: new Date(endTime),
-                },
-            });
+            // Create appointment
+            const id = uuidv4();
+            const insertRes = await query(
+                'INSERT INTO appointments(id, "patientId", "professionalId", "startTime", "endTime", status, "createdAt", "updatedAt") VALUES($1,$2,$3,$4,$5,$6,now(),now()) RETURNING *',
+                [id, patientId, professionalId, new Date(startTime), new Date(endTime), 'SCHEDULED'],
+            );
 
-            res.status(201).json(appointment);
+            res.status(201).json(insertRes.rows[0]);
         } catch (err) {
             res.status(500).json({ error: 'Failed to book appointment' });
         }
@@ -59,19 +52,25 @@ export class AppointmentController {
         if (!userId) return res.status(401).json({ error: 'Unauthorized' });
 
         try {
-            // Busca consultas e inclui na resposta os dados da "outra" pessoa envolvida
-            const appointments = await prisma.appointment.findMany({
-                // Filtro dinâmico: Se quem pedir for paciente, usa `patientId`, senão usa `professionalId`
-                where: role === 'PATIENT' ? { patientId: userId } : { professionalId: userId },
-                // Include dinâmico: Se for psicólogo, puxa dados do paciente. Se for paciente, puxa dados do psicólogo.
-                include: {
-                    patient: role === 'PROFESSIONAL',
-                    professional: role === 'PATIENT',
-                },
-                orderBy: { startTime: 'asc' }, // Ordena da consulta mais próxima até a mais distante
-            });
+            let sql: string;
+            let params: any[] = [userId];
 
-            res.status(200).json(appointments);
+            if (role === 'PATIENT') {
+                sql = `SELECT a.*, pr.id as professional_id, pr.name as professional_name, pr.avatar as professional_avatar
+                       FROM appointments a
+                       LEFT JOIN users pr ON pr.id = a."professionalId"
+                       WHERE a."patientId" = $1
+                       ORDER BY a."startTime" ASC`;
+            } else {
+                sql = `SELECT a.*, p.id as patient_id, p.name as patient_name, p.avatar as patient_avatar
+                       FROM appointments a
+                       LEFT JOIN users p ON p.id = a."patientId"
+                       WHERE a."professionalId" = $1
+                       ORDER BY a."startTime" ASC`;
+            }
+
+            const resAppointments = await query(sql, params);
+            res.status(200).json(resAppointments.rows);
         } catch (err) {
             res.status(500).json({ error: 'Failed to fetch appointments' });
         }

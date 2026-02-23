@@ -1,5 +1,5 @@
 import { Response } from 'express';
-import { prisma } from '../index';
+import { query } from '../config/db';
 import { AuthRequest } from '../middlewares/authMiddleware';
 import { EncryptionService } from '../services/encryptionService';
 
@@ -19,33 +19,22 @@ export class ClinicalNotesController {
         try {
             // Híbrido de Autorização (B-AC/RBAC): Garante que a anotação só é permitida 
             // no escopo de um Vínculo Terapêutico (Match Ativo = ACCEPTED).
-            const match = await prisma.match.findUnique({
-                where: {
-                    patientId_professionalId: {
-                        patientId,
-                        professionalId: proId,
-                    },
-                },
-            });
+            const matchRes = await query(
+                'SELECT * FROM matches WHERE "patientId" = $1 AND "professionalId" = $2 LIMIT 1',
+                [patientId, proId],
+            );
+            const match = matchRes.rows[0];
 
-            if (!match || match.status !== 'ACCEPTED') {
-                return res.status(403).json({ error: 'Unauthorized to write notes for this patient' });
-            }
+            if (!match || match.status !== 'ACCEPTED') return res.status(403).json({ error: 'Unauthorized to write notes for this patient' });
 
-            // [NÚCLEO HIPAA/LGPD]: Cifragem AES-256-GCM antes do envio ao SGBD.
-            // O DBA não consegue, ao analisar as tabelas, ler o conteúdo puro.
             const encryptedContent = EncryptionService.encrypt(content);
+            const id = require('uuid').v4();
+            const insert = await query(
+                `INSERT INTO prontuarios(id, "professionalId", "patientId", content, "createdAt", "updatedAt") VALUES($1,$2,$3,$4,now(),now()) RETURNING *`,
+                [id, proId, patientId, encryptedContent],
+            );
 
-            const note = await prisma.prontuario.create({
-                data: {
-                    professionalId: proId,
-                    patientId,
-                    content: encryptedContent,
-                },
-            });
-
-            // Evita devolução do dado cru na rede imediatamente após a criação
-            res.status(201).json({ ...note, content: '[ENCRYPTED]' });
+            res.status(201).json({ ...insert.rows[0], content: '[ENCRYPTED]' });
         } catch (err) {
             res.status(500).json({ error: 'Failed to create clinical note' });
         }
@@ -63,20 +52,12 @@ export class ClinicalNotesController {
         if (!proId) return res.status(401).json({ error: 'Unauthorized' });
 
         try {
-            const notes = await prisma.prontuario.findMany({
-                where: {
-                    professionalId: proId as string,
-                    patientId: patientId as string,
-                },
-                orderBy: { createdAt: 'desc' },
-            });
-
-            // Decifragem O(N): Executado estritamente para laudos pertinentes.
-            const decryptedNotes = notes.map((note: any) => ({
-                ...note,
-                content: EncryptionService.decrypt(note.content),
-            }));
-
+            const resNotes = await query(
+                `SELECT * FROM prontuarios WHERE "professionalId" = $1 AND "patientId" = $2 ORDER BY "createdAt" DESC`,
+                [proId, patientId],
+            );
+            const notes = resNotes.rows;
+            const decryptedNotes = notes.map((note: any) => ({ ...note, content: EncryptionService.decrypt(note.content) }));
             res.status(200).json(decryptedNotes);
         } catch (err) {
             res.status(500).json({ error: 'Failed to fetch clinical notes' });
