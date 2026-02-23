@@ -84,3 +84,45 @@ npm run dev
 ```
 
 > Acesse a plataforma pelo navegador: `http://localhost:5173`
+
+---
+
+### 3️⃣ Inicializar o banco e executar testes (útil para desenvolvimento)
+
+- Preparar `.env` no backend (não commite este arquivo):
+
+	```bash
+	cd backend
+	cp .env.example .env
+	# Edite .env com seu usuário/senha/host/port se necessário
+	```
+
+- Se você estiver usando a base PostGIS de amostra usada neste projeto, defina `DATABASE_URL` para `postgis_36_sample` (ex.: `postgresql://postgres:postgres@localhost:5432/postgis_36_sample`). Este projeto inclui `backend/.env.example` com esse valor de exemplo.
+
+- Inicializar schema (opcional — criará tabelas básicas definidas em `backend/db-init.sql`):
+
+	```bash
+	# a partir da pasta raiz do repositório
+	node backend/run-db-init.js
+	```
+
+- Rodar o servidor backend (em um terminal):
+
+	```bash
+	cd backend
+	npm run dev
+	```
+
+- Executar testes E2E rápidos (inicia o fluxo de registro, swipe, match e agendamento):
+
+	```bash
+	# Com o backend rodando (porta 3000)
+	node backend/tests/e2e.js
+	# ou, a partir de backend/
+	# node tests/e2e.js
+	```
+
+Observações de segurança:
+- Nunca commite seu `backend/.env` com senhas reais. Use `backend/.env.example` para documentar variáveis de ambiente.
+- Se precisar alterar valores de dev (por exemplo, para apontar a um banco local diferente), edite apenas seu `.env` local.
+
