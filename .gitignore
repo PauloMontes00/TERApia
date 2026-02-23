@@ -10,3 +10,6 @@ frontend/dist
 backend/node_modules
 backend/dist
 backend/.env
+COMMANDS.md
+teste.cennectingDB
+.env
