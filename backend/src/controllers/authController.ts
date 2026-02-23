@@ -15,24 +15,44 @@ export class AuthController {
      */
     static async register(req: Request, res: Response) {
         const { email, password, name, role } = req.body;
-
         try {
+            // Basic input validation to avoid runtime errors and give clearer responses
+            if (!email || !password) {
+                try { require('fs').appendFileSync('error.log', `REGISTER BAD INPUT: ${new Date().toISOString()} - missing email/password - ${JSON.stringify({ email, name, role })}\n`); } catch(e){}
+                console.warn('AuthController.register bad input:', { email, name, role });
+                return res.status(400).json({ error: 'Email and password are required' });
+            }
+
+            console.log('AuthController.register attempt:', { email, name, role });
+
             const exists = await query('SELECT id FROM users WHERE email = $1 LIMIT 1', [email]);
-            if (exists.rowCount > 0) return res.status(400).json({ error: 'User already exists' });
+            console.log('AuthController.register exists rowCount:', exists.rowCount);
+            if (exists.rowCount > 0) {
+                try { require('fs').appendFileSync('error.log', `REGISTER CONFLICT: ${new Date().toISOString()} - email already exists - ${email}\n`); } catch(e){}
+                return res.status(400).json({ error: 'User already exists' });
+            }
 
             const hashedPassword = await bcrypt.hash(password, 10);
             const id = uuidv4();
             const roleVal = (role as 'PATIENT' | 'PROFESSIONAL') || 'PATIENT';
+
+            console.log('AuthController.register inserting user id:', id, 'role:', roleVal);
 
             const insert = await query(
                 `INSERT INTO users(id, email, password, name, role, "createdAt", "updatedAt") VALUES($1,$2,$3,$4,$5,now(),now()) RETURNING *`,
                 [id, email, hashedPassword, name, roleVal],
             );
 
+            console.log('AuthController.register insert rowCount:', insert.rowCount);
             const user = insert.rows[0];
             const token = jwt.sign({ id: user.id, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
             res.status(201).json({ user: { id: user.id, name: user.name, email: user.email, role: user.role }, token });
         } catch (err) {
+            try {
+                const meta = { ip: req.ip, ua: req.get('user-agent'), body: Object.assign({}, req.body, { password: '[FILTERED]' }) };
+                require('fs').appendFileSync('error.log', `REGISTER ERROR: ${new Date().toISOString()} - ${err.stack || err} - meta: ${JSON.stringify(meta)}\n`);
+            } catch (e) {}
+            console.error('AuthController.register error:', err);
             res.status(500).json({ error: 'Failed to register user' });
         }
     }
@@ -57,6 +77,8 @@ export class AuthController {
             const token = jwt.sign({ id: user.id, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
             res.status(200).json({ user: { id: user.id, name: user.name, email: user.email, role: user.role }, token });
         } catch (err) {
+            try { require('fs').appendFileSync('error.log', `LOGIN ERROR: ${new Date().toISOString()} - ${err.stack || err}\n`); } catch(e){}
+            console.error('AuthController.login error:', err);
             res.status(500).json({ error: 'Failed to login' });
         }
     }

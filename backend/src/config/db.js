@@ -1,13 +1,24 @@
 const { Pool } = require('pg');
-require('dotenv').config();
+const path = require('path');
 
-const pool = new Pool({
-  host: process.env.DB_HOST || 'localhost',
-  port: parseInt(process.env.DB_PORT, 10) || 5432,
-  database: process.env.DB_NAME || process.env.DATABASE_URL?.split('/')?.pop() || 'postgis_36_sample',
-  user: process.env.DB_USER || 'postgres',
-  password: process.env.DB_PASSWORD || 'ADMIN',
-});
+// Load .env FIRST before creating Pool
+require('dotenv').config({ path: path.resolve(__dirname, '../../.env') });
+
+let pool;
+// Create pool using CONNECTION STRING if DATABASE_URL is set, otherwise fallback to individual params
+if (process.env.DATABASE_URL) {
+  console.log('[DB] Using DATABASE_URL for connection');
+  pool = new Pool({ connectionString: process.env.DATABASE_URL });
+} else {
+  console.log('[DB] Using individual connection parameters');
+  pool = new Pool({
+    host: process.env.DB_HOST || 'localhost',
+    port: parseInt(process.env.DB_PORT, 10) || 5432,
+    database: process.env.DB_NAME || 'postgis_36_sample',
+    user: process.env.DB_USER || 'postgres',
+    password: process.env.DB_PASSWORD || 'ADMIN',
+  });
+}
 
 async function query(text, params) {
   const start = Date.now();

@@ -1,16 +1,17 @@
+// Load env FIRST before any other code
+import './bootstrap';
+
+// Now safe to import other modules
 import express from 'express';
 import http from 'http';
 import { Server } from 'socket.io';
 import cors from 'cors';
-import dotenv from 'dotenv';
 import './config/db';
 
 import authRoutes from './routes/authRoutes';
 import patientRoutes from './routes/patientRoutes';
 import proRoutes from './routes/proRoutes';
 import appointmentRoutes from './routes/appointmentRoutes';
-
-dotenv.config();
 
 const app = express();
 const server = http.createServer(app);
