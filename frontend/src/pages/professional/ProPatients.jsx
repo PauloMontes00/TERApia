@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { Search, Filter } from 'lucide-react'
-import { useApp } from '../../context/AppContext'
+import { useApp } from '../../context/useApp'
 
 export default function ProPatients() {
     const navigate = useNavigate()

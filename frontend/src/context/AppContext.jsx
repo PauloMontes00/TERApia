@@ -1,10 +1,11 @@
-import { createContext, useContext, useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef } from 'react'
+import { AppContext } from './context'
 
 /**
  * AppContext: gerenciamento global do frontend com conexão real à API.
  * Substitui mocks por chamadas HTTP e gerencia autenticação JWT/usuário.
  */
-const AppContext = createContext(null)
+// AppContext é importado de context.js
 
 // helper para requisições autenticadas; usa token do localStorage
 // devolve a `Response` quando sucesso e rejeita com um Error em caso de
@@ -27,11 +28,12 @@ async function authFetch(path, options = {}) {
         try {
             const json = JSON.parse(text);
             if (json && json.error) message = json.error;
-        } catch {}
+        } catch {
+            // parsing failed, ignore non-JSON error body
+        }
         const err = new Error(message || `HTTP ${res.status}`);
         // anexa o status para quem precisar
-        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-        // @ts-ignore
+        // adiciona status ao erro para permitir tratamento posterior
         err.status = res.status;
         throw err;
     }
@@ -40,30 +42,22 @@ async function authFetch(path, options = {}) {
 
 export function AppProvider({ children }) {
     // Estado principal que define qual "módulo" (Paciente ou Psicólogo) está sendo exibido na tela
-    const [userType, setUserType] = useState(null) // 'patient' | 'professional'
 
     // autenticação/token
-    const [user, setUser] = useState(null) // { id, name, email, role }
+    // (user definido mais abaixo via lazy init)
 
-    // restaurar usuário e token do localStorage
-    useEffect(() => {
+    // inicializa `user` e `userType` a partir do localStorage
+    const [user, setUser] = useState(() => {
         const stored = localStorage.getItem('user');
-        const token = localStorage.getItem('token');
         if (stored) {
-            try {
-                const u = JSON.parse(stored);
-                setUser(u);
-                setUserType(u.role.toLowerCase());
-            } catch (e) {
+            try { return JSON.parse(stored); } catch (e) {
                 console.warn('Failed to parse stored user', e);
                 localStorage.removeItem('user');
             }
         }
-        if (token && token !== '' && !localStorage.getItem('token')) {
-            // já está guardado, mas se fosse outro estado também poderia ser
-            localStorage.setItem('token', token);
-        }
-    }, []);
+        return null;
+    });
+    const [userType, setUserType] = useState(() => user ? user.role.toLowerCase() : null);
 
     // Estados Globais de Dados provenientes da API
     const [professionals, setProfessionals] = useState([])
@@ -267,6 +261,7 @@ export function AppProvider({ children }) {
             setNotifications,
             toasts,
             addToast,
+            authFetch,
         }}>
             {children}
         </AppContext.Provider>
@@ -279,15 +274,6 @@ export function AppProvider({ children }) {
  * as funções do AppContext sem precisar rescrever o `useContext(AppContext)`.
  */
 
-export function useApp() {
 
-    const ctx = useContext(AppContext)
-    
-    if (!ctx) throw new Error('useApp must be used within AppProvider')
-    return ctx
-}
-
-// exporta auxiliar para quando não houver hook disponível
-export { authFetch }
 
 

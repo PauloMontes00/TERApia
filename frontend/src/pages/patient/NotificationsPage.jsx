@@ -1,6 +1,6 @@
 import { motion } from 'framer-motion'
 import { Bell, Heart, Calendar, Check } from 'lucide-react'
-import { useApp } from '../../context/AppContext'
+import { useApp } from '../../context/useApp'
 
 const ICON_MAP = {
     match: <Heart size={18} color="var(--color-match)" fill="var(--color-match)" />,

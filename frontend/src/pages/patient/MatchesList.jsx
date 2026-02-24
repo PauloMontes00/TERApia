@@ -1,7 +1,7 @@
 import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { Calendar, MessageCircle, Clock, Heart, ChevronRight } from 'lucide-react'
-import { useApp } from '../../context/AppContext'
+import { useApp } from '../../context/useApp'
 
 const STATUS_LABELS = { active: { label: 'Ativo', cls: 'badge-success' }, scheduled: { label: 'Agendado', cls: 'badge-primary' }, pending: { label: 'Pendente', cls: 'badge-warning' } }
 

@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { ChevronLeft, Video, FileText, Clock, Calendar, Save } from 'lucide-react'
-import { useApp } from '../../context/AppContext'
+import { useApp } from '../../context/useApp'
 
 const SESSIONS_HISTORY = [
     { date: '2026-02-18', notes: 'Paciente relata melhora na qualidade do sono. Redução de episódios de ansiedade. Exercícios de respiração sendo praticados diariamente.', duration: 50 },

@@ -27,7 +27,7 @@ Essa redundância significa que qualquer alteração no método de conexão
 (depuração, erro, parâmetros) deve ser repetida em dois lugares, o que
 facilita a inconsistência.
 
-### Possível refatoração
+### Possível refatoração₢
 
 Unir os dois no mesmo módulo exportado, e reusar em scripts. Ou manter o
 `backend/src/config/db.ts` como fonte única e fazer `db.js` simplesmente

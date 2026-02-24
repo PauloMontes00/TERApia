@@ -4,7 +4,7 @@ import {
     LayoutDashboard, Users, Calendar, BarChart2, Settings,
     ChevronLeft, ChevronRight, Activity, Bell
 } from 'lucide-react'
-import { useApp } from '../context/AppContext'
+import { useApp } from '../context/useApp'
 import Toast from './Toast'
 
 const navItems = [

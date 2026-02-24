@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Activity, ArrowRight, ArrowLeft, Check, User, Stethoscope } from 'lucide-react'
-import { useApp } from '../context/AppContext'
+import { useApp } from '../context/useApp'
 
 // Define de antemão um array de especialidades para médicos selecionarem
 const SPECIALTIES = ['Ansiedade', 'Depressão', 'Autoestima', 'Relacionamentos', 'Estresse', 'TDAH', 'TOC', 'Trauma', 'Família', 'Casal', 'Luto', 'Sexualidade']

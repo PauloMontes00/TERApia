@@ -1,7 +1,7 @@
 import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { Users, Calendar, TrendingUp, Clock, Check, X, Video, ChevronRight } from 'lucide-react'
-import { useApp } from '../../context/AppContext'
+import { useApp } from '../../context/useApp'
 
 export default function ProDashboard() {
     const navigate = useNavigate()

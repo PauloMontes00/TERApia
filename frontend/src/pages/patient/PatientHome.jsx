@@ -1,7 +1,7 @@
 import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { Calendar, Heart, ChevronRight, Clock, Star, Sparkles } from 'lucide-react'
-import { useApp } from '../../context/AppContext'
+import { useApp } from '../../context/useApp'
 
 export default function PatientHome() {
     const navigate = useNavigate()

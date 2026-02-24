@@ -1,7 +1,7 @@
 import { useParams, useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { Star, ChevronLeft, Calendar, Video, Shield, Heart } from 'lucide-react'
-import { useApp } from '../../context/AppContext'
+import { useApp } from '../../context/useApp'
 
 export default function ProfessionalProfile() {
     const { id } = useParams()

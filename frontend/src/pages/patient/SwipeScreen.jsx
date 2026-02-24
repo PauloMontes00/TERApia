@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion, useMotionValue, useTransform, AnimatePresence } from 'framer-motion'
 import { X, Heart, Star, Filter, ChevronDown, MapPin } from 'lucide-react'
-import { useApp } from '../../context/AppContext'
+import { useApp } from '../../context/useApp'
 
 /**
  * ProCard Component: Motor de Análise Física (Drag/Drop) via Framer Motion.

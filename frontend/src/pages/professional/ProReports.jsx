@@ -1,13 +1,13 @@
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { TrendingUp, Users, Calendar, Download, ChevronRight, PieChart, BarChart2 } from 'lucide-react'
-import { authFetch, useApp } from '../../context/AppContext'
+import { useApp } from '../../context/useApp'
 
 export default function ProReports() {
     const [stats, setStats] = useState([]);
     const [transactions, setTransactions] = useState([]);
 
-    const { addToast } = useApp();
+    const { addToast, authFetch } = useApp();
 
     useEffect(() => {
         const fetchReports = async () => {
