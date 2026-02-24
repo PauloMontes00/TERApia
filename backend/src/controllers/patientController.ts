@@ -4,6 +4,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { AuthRequest } from '../middlewares/authMiddleware';
 import { handleError } from '../utils/error';
 import * as dbh from '../utils/dbHelpers';
+import { query } from '../config/db';
 
 export class PatientController {
     /**
@@ -18,6 +19,21 @@ export class PatientController {
             res.status(200).json(resPros.rows);
         } catch (err) {
             return handleError(res, 'Failed to fetch professionals', err);
+        }
+    }
+
+    static async listMatches(req: AuthRequest, res: Response) {
+        const patientId = req.user?.id;
+        if (!patientId) return res.status(401).json({ error: 'Unauthorized' });
+        try {
+            const resMatches = await query(
+                `SELECT m.*, u.id as professional_id, u.name as professional_name, u.avatar as professional_avatar
+                 FROM matches m JOIN users u ON u.id = m."professionalId" WHERE m."patientId" = $1`,
+                [patientId],
+            );
+            res.status(200).json(resMatches.rows);
+        } catch (err) {
+            return handleError(res, 'Failed to fetch matches', err);
         }
     }
 
@@ -46,19 +62,27 @@ export class PatientController {
                 createdAt: now,
             });
 
+            let createdMatch = null;
             if (direction === 'LIKE') {
-                const matchId = uuidv4();
-                const matchRes = await dbh.insertMatch({
-                    id: matchId,
-                    patientId,
-                    professionalId: toProfessionalId,
-                    status: 'PENDING',
-                });
-
-                io.to(toProfessionalId).emit('new_pending_match', { matchId: matchRes.rows[0].id, patientId });
+                // check reciprocity: the professional already liked this patient?
+                const recip = await query(
+                    'SELECT id FROM swipes WHERE "fromId" = $1 AND "toId" = $2 AND direction = $3 LIMIT 1',
+                    [toProfessionalId, patientId, 'LIKE'],
+                );
+                if (recip.rowCount > 0) {
+                    const matchId = uuidv4();
+                    const matchRes = await dbh.insertMatch({
+                        id: matchId,
+                        patientId,
+                        professionalId: toProfessionalId,
+                        status: 'ACCEPTED',
+                    });
+                    createdMatch = matchRes.rows[0];
+                    io.to(toProfessionalId).emit('match_status_update', { matchId, status: 'ACCEPTED', professionalId: toProfessionalId });
+                }
             }
 
-            res.status(201).json(swipeRes.rows[0]);
+            res.status(201).json({ swipe: swipeRes.rows[0], match: createdMatch });
         } catch (err) {
             return handleError(res, 'Failed to record swipe', err);
         }

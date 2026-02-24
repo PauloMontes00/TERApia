@@ -1,21 +1,30 @@
+import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { TrendingUp, Users, Calendar, Download, ChevronRight, PieChart, BarChart2 } from 'lucide-react'
 
-const TRANSACTIONS = [
-    { id: '1', patient: 'João Silva', date: '2026-02-18', value: 180, status: 'paid' },
-    { id: '2', patient: 'Maria Fernandes', date: '2026-02-15', value: 160, status: 'paid' },
-    { id: '3', patient: 'Lucas Mendes', date: '2026-02-14', value: 200, status: 'pending' },
-    { id: '4', patient: 'Ana Luíza', date: '2026-02-12', value: 180, status: 'paid' },
-    { id: '5', patient: 'Carlos Eduardo', date: '2026-02-10', value: 320, status: 'paid' },
-]
-
 export default function ProReports() {
-    const stats = [
-        { label: 'Receita Total', value: 'R$ 8.420', sub: '+12% vs mês ant.', color: 'var(--color-primary)' },
-        { label: 'Consultas Realizadas', value: '42', sub: 'Média 10.5/sem', color: 'var(--color-secondary)' },
-        { label: 'Ticket Médio', value: 'R$ 210', sub: 'Estável', color: '#F5A623' },
-        { label: 'Crescimento', value: '+4', sub: 'Novos pacientes', color: '#7C3AED' },
-    ]
+    const [stats, setStats] = useState([]);
+    const [transactions, setTransactions] = useState([]);
+
+    useEffect(() => {
+        const fetchReports = async () => {
+            try {
+                const res = await fetch('/api/pro/reports', {
+                    headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+                });
+                if (!res.ok) throw new Error('Failed to fetch reports');
+                const data = await res.json();
+                setStats([
+                    { label: 'Receita Total', value: `R$ ${data.totalRevenue.toFixed(2)}`, sub: '', color: 'var(--color-primary)' },
+                    { label: 'Consultas Realizadas', value: `${data.totalAppointments}`, sub: '', color: 'var(--color-secondary)' },
+                ]);
+                // optionally fetch transactions list? require endpoint; skip for now
+            } catch (err) {
+                console.error(err);
+            }
+        };
+        fetchReports();
+    }, []);
 
     return (
         <div>
@@ -59,16 +68,20 @@ export default function ProReports() {
                                 </tr>
                             </thead>
                             <tbody>
-                                {TRANSACTIONS.map(tx => (
-                                    <tr key={tx.id} style={{ borderBottom: '1px solid var(--color-bg-subtle)' }}>
-                                        <td style={{ padding: '14px var(--sp-lg)', fontSize: '0.9rem', fontWeight: 600 }}>{tx.patient}</td>
-                                        <td style={{ padding: '14px var(--sp-lg)', fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>{new Date(tx.date).toLocaleDateString('pt-BR')}</td>
-                                        <td style={{ padding: '14px var(--sp-lg)', textAlign: 'right', fontSize: '0.9rem', fontWeight: 700 }}>R$ {tx.value}</td>
-                                        <td style={{ padding: '14px var(--sp-lg)', textAlign: 'center' }}>
-                                            <span className={`badge ${tx.status === 'paid' ? 'badge-success' : 'badge-warning'}`} style={{ fontSize: '0.65rem' }}>{tx.status === 'paid' ? 'Pago' : 'Processando'}</span>
-                                        </td>
-                                    </tr>
-                                ))}
+                                {transactions.length === 0 ? (
+                                    <tr><td colSpan={4} style={{ padding: '14px var(--sp-lg)', textAlign: 'center' }}>Nenhuma transação disponível</td></tr>
+                                ) : (
+                                    transactions.map(tx => (
+                                        <tr key={tx.id} style={{ borderBottom: '1px solid var(--color-bg-subtle)' }}>
+                                            <td style={{ padding: '14px var(--sp-lg)', fontSize: '0.9rem', fontWeight: 600 }}>{tx.patient}</td>
+                                            <td style={{ padding: '14px var(--sp-lg)', fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>{new Date(tx.date).toLocaleDateString('pt-BR')}</td>
+                                            <td style={{ padding: '14px var(--sp-lg)', textAlign: 'right', fontSize: '0.9rem', fontWeight: 700 }}>R$ {tx.value}</td>
+                                            <td style={{ padding: '14px var(--sp-lg)', textAlign: 'center' }}>
+                                                <span className={`badge ${tx.status === 'paid' ? 'badge-success' : 'badge-warning'}`} style={{ fontSize: '0.65rem' }}>{tx.status === 'paid' ? 'Pago' : 'Processando'}</span>
+                                            </td>
+                                        </tr>
+                                    ))
+                                )}
                             </tbody>
                         </table>
                     </div>

@@ -8,6 +8,7 @@ router.use(authMiddleware);
 router.use(roleCheck(['PATIENT']));
 
 router.get('/discover', PatientController.discover);
+router.get('/matches', PatientController.listMatches);
 router.post('/swipe', PatientController.swipe);
 
 export default router;

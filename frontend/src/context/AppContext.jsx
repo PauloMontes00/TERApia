@@ -1,128 +1,50 @@
-import { createContext, useContext, useState } from 'react'
+import { createContext, useContext, useState, useEffect } from 'react'
 
 /**
- * AppContext: Coração do gerenciamento de estado global do Frontend.
- * Em um cenário real, este arquivo faria chamadas HTTP para nossa API Express/PostgreSQL.
- * Atualmente ele usa "Mock Data" (dados estáticos) para manter a interface funcionando fluida.
+ * AppContext: gerenciamento global do frontend com conexão real à API.
+ * Substitui mocks por chamadas HTTP e gerencia autenticação JWT/usuário.
  */
 const AppContext = createContext(null)
-// Mock data
-const MOCK_PROFESSIONALS = [
-    {
-        id: '1',
-        name: 'Dra. Camila Rocha',
-        specialty: 'Psicóloga Clínica',
-        crp: '06/123456',
-        bio: 'Especialista em ansiedade e depressão com 8 anos de experiência. Abordagem humanista e acolhedora para adultos e jovens adultos.',
-        photo: null,
-        initials: 'CR',
-        rating: 4.9,
-        reviews: 127,
-        price: 180,
-        gender: 'Feminino',
-        languages: ['Português'],
-        specialties: ['Ansiedade', 'Depressão', 'Autoestima', 'Relacionamentos'],
-        available: true,
-        color: '#4A8FD4',
-    },
-    {
-        id: '2',
-        name: 'Dr. Lucas Mendes',
-        specialty: 'Psicólogo Comportamental',
-        crp: '06/654321',
-        bio: 'TCC e mindfulness para gerenciamento de estresse, TDAH e TOC. Consultas objetivas com foco em resultados práticos.',
-        photo: null,
-        initials: 'LM',
-        rating: 4.8,
-        reviews: 89,
-        price: 160,
-        gender: 'Masculino',
-        languages: ['Português', 'Inglês'],
-        specialties: ['Estresse', 'TDAH', 'TOC', 'Mindfulness'],
-        available: true,
-        color: '#52B788',
-    },
-    {
-        id: '3',
-        name: 'Dra. Fernanda Lima',
-        specialty: 'Psiquiatra',
-        crp: 'CRM/SP 98765',
-        bio: 'Psiquiatra com foco em transtornos de humor, ansiedade e sono. Tratamento integrado com acompanhamento medicamentoso.',
-        photo: null,
-        initials: 'FL',
-        rating: 4.95,
-        reviews: 204,
-        price: 320,
-        gender: 'Feminino',
-        languages: ['Português'],
-        specialties: ['Transtorno Bipolar', 'Insônia', 'Depressão', 'Ansiedade'],
-        available: false,
-        color: '#7C3AED',
-    },
-    {
-        id: '4',
-        name: 'Dr. Rafael Souza',
-        specialty: 'Psicoterapeuta',
-        crp: '06/789012',
-        bio: 'Psicoterapia psicanalítica para autoconhecimento profundo. Atendo casais, famílias e adultos individualmente.',
-        photo: null,
-        initials: 'RS',
-        rating: 4.7,
-        reviews: 63,
-        price: 200,
-        gender: 'Masculino',
-        languages: ['Português', 'Espanhol'],
-        specialties: ['Casal', 'Família', 'Autoconhecimento', 'Psicanálise'],
-        available: true,
-        color: '#D97706',
-    },
-    {
-        id: '5',
-        name: 'Dra. Ana Beatriz Costa',
-        specialty: 'Neuropsicóloga',
-        crp: '06/345678',
-        bio: 'Avaliação e reabilitação neuropsicológica. Especialista em transtornos do neurodesenvolvimento em crianças e adultos.',
-        photo: null,
-        initials: 'AC',
-        rating: 4.85,
-        reviews: 41,
-        price: 250,
-        gender: 'Feminino',
-        languages: ['Português'],
-        specialties: ['Autismo', 'TDAH', 'Aprendizagem', 'Neuropsicologia'],
-        available: true,
-        color: '#E85D8A',
-    },
-]
 
-const MOCK_MATCHES = [
-    { ...MOCK_PROFESSIONALS[0], matchDate: '2026-02-18', status: 'active', nextSession: '2026-02-22T10:00:00' },
-    { ...MOCK_PROFESSIONALS[1], matchDate: '2026-02-15', status: 'scheduled', nextSession: '2026-02-25T14:00:00' },
-]
-
-const MOCK_PATIENTS = [
-    { id: 'p1', name: 'João Silva', age: 32, initials: 'JS', color: '#4A8FD4', status: 'active', sessions: 12, lastSession: '2026-02-18', nextSession: '2026-02-22T10:00:00', pending: false },
-    { id: 'p2', name: 'Maria Fernandes', age: 27, initials: 'MF', color: '#52B788', status: 'pending', sessions: 0, lastSession: null, nextSession: null, pending: true },
-    { id: 'p3', name: 'Carlos Eduardo', age: 45, initials: 'CE', color: '#D97706', status: 'active', sessions: 5, lastSession: '2026-02-17', nextSession: '2026-02-24T16:00:00', pending: false },
-    { id: 'p4', name: 'Beatriz Alves', age: 23, initials: 'BA', color: '#E85D8A', status: 'pending', sessions: 0, lastSession: null, nextSession: null, pending: true },
-    { id: 'p5', name: 'Roberto Nunes', age: 38, initials: 'RN', color: '#7C3AED', status: 'active', sessions: 20, lastSession: '2026-02-20', nextSession: null, pending: false },
-]
+// helper para requisições autenticadas; usa token do estado
+function authFetch(path, options = {}) {
+    const token = localStorage.getItem('token');
+    return fetch(path, {
+        ...options,
+        headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            ...options.headers,
+        },
+    });
+}
 
 export function AppProvider({ children }) {
     // Estado principal que define qual "módulo" (Paciente ou Psicólogo) está sendo exibido na tela
     const [userType, setUserType] = useState(null) // 'patient' | 'professional'
 
-    // Estados Globais de Dados (futuras conexões com o backend)
-    const [professionals] = useState(MOCK_PROFESSIONALS)
-    const [matches, setMatches] = useState(MOCK_MATCHES)
-    const [patients, setPatients] = useState(MOCK_PATIENTS)
+    // autenticação/token
+    const [user, setUser] = useState(null) // { id, name, email, role }
 
-    // Fila de notificações que imita o comportamento do Socket.io de Tempo Real que fizemos no backend
-    const [notifications, setNotifications] = useState([
-        { id: 1, type: 'match', text: 'Você deu match com Dra. Camila Rocha!', read: false, time: '10 min' },
-        { id: 2, type: 'session', text: 'Consulta com Dra. Camila amanhã às 10h', read: false, time: '2h' },
-        { id: 3, type: 'match', text: 'Dr. Lucas aceitou seu match!', read: true, time: '1 dia' },
-    ])
+    // restore from localStorage on mount
+    useEffect(() => {
+        const stored = localStorage.getItem('user');
+        if (stored) {
+            try {
+                const u = JSON.parse(stored);
+                setUser(u);
+                setUserType(u.role.toLowerCase());
+            } catch {};
+        }
+    }, []);
+
+    // Estados Globais de Dados provenientes da API
+    const [professionals, setProfessionals] = useState([])
+    const [matches, setMatches] = useState([])
+    const [patients, setPatients] = useState([]) // somente para profissional
+
+    // notificações reais serão recebidas via socket.io mais tarde
+    const [notifications, setNotifications] = useState([])
 
     // Sistema global de Toasts (Avisos efêmeros no canto da tela)
     const [toasts, setToasts] = useState([])
@@ -136,6 +58,54 @@ export function AppProvider({ children }) {
         setToasts(prev => [...prev, { id, message, type }])
         setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 3500)
     }
+
+    // --- Autenticação real ---
+    const login = async (email, password) => {
+        const res = await fetch('/api/auth/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, password }),
+        });
+        if (!res.ok) throw new Error('Login failed');
+        const data = await res.json();
+        setUser(data.user);
+        setUserType(data.user.role.toLowerCase());
+        localStorage.setItem('token', data.token);
+        localStorage.setItem('user', JSON.stringify(data.user));
+        return data.user;
+    };
+
+    const logout = () => {
+        setUser(null);
+        setUserType(null);
+        localStorage.removeItem('token');
+    };
+
+    // --- fetchers ---
+    useEffect(() => {
+        // quando muda userType, buscar dados iniciais
+        const fetchData = async () => {
+            try {
+                if (userType === 'patient') {
+                    const proRes = await authFetch('/api/patient/discover');
+                    const proJson = await proRes.json();
+                    setProfessionals(proJson);
+
+                    const matchRes = await authFetch('/api/patient/matches');
+                    const matchJson = await matchRes.json();
+                    setMatches(matchJson);
+                } else if (userType === 'professional') {
+                    const pendingRes = await authFetch('/api/pro/pending-matches');
+                    const pendingJson = await pendingRes.json();
+                    setMatches(pendingJson);
+                }
+            } catch (err) {
+                console.error('Failed to fetch initial data', err);
+                addToast('Erro ao carregar dados iniciais', 'error');
+            }
+        };
+        if (userType) fetchData();
+    }, [userType]);
 
     /**
      * Funções que simulam as chamadas para o controller 'proController.respondToMatch' no Backend.
@@ -153,11 +123,22 @@ export function AppProvider({ children }) {
     return (
         // Provedor que "derrama" todas essas funções e variáveis para os componentes filhos (rotas)
         <AppContext.Provider value={{
-            userType, setUserType,
-            professionals, matches, setMatches,
-            patients, setPatients, acceptPatient, declinePatient,
-            notifications, setNotifications,
-            toasts, addToast,
+            userType,
+            setUserType,
+            user,
+            login,
+            logout,
+            professionals,
+            matches,
+            setMatches,
+            patients,
+            setPatients,
+            acceptPatient,
+            declinePatient,
+            notifications,
+            setNotifications,
+            toasts,
+            addToast,
         }}>
             {children}
         </AppContext.Provider>
@@ -175,4 +156,4 @@ export function useApp() {
     return ctx
 }
 
-export { MOCK_PROFESSIONALS, MOCK_PATIENTS }
+export { AppProvider }

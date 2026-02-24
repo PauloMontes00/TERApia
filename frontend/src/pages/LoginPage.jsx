@@ -7,7 +7,7 @@ import { useApp } from '../context/AppContext'
 export default function LoginPage() {
     const navigate = useNavigate()
     const [params] = useSearchParams()
-    const { setUserType } = useApp()
+    const { login, addToast } = useApp()
     const [role, setRole] = useState(params.get('type') === 'pro' ? 'professional' : 'patient')
 
     // Gerenciamento de Estado (Local State): Mantém os dados da sessão pré-login
@@ -22,13 +22,15 @@ export default function LoginPage() {
      * Após sucesso, aloca o JWT em HTTP-only Cookie ou LocalStorage (dependendo da estratégia de persistência)
      * e engatilha o redirecionamento com base no Role-Based Access Control (RBAC).
      */
-    const handleLogin = (e) => {
+    const handleLogin = async (e) => {
         e.preventDefault()
-
-        // MOCK DE INTEGRAÇÃO (Awaiting Backend Hookup)
-        // Redireciona o fluxo baseado na persona selecionada.
-        setUserType(role)
-        navigate(role === 'patient' ? '/patient/home' : '/pro/dashboard')
+        try {
+            const user = await login(email, password)
+            navigate(user.role === 'PATIENT' ? '/patient/home' : '/pro/dashboard')
+        } catch (err) {
+            console.error('login failed', err)
+            addToast('Falha na autenticação', 'error')
+        }
     }
 
     return (

@@ -74,4 +74,26 @@ export class ProController {
             return handleError(res, 'Failed to respond to match', err);
         }
     }
+
+    static async getReports(req: AuthRequest, res: Response) {
+        const proId = req.user?.id;
+        if (!proId) return res.status(401).json({ error: 'Unauthorized' });
+        try {
+            const statsRes = await query(
+                `SELECT COUNT(*) AS total_appointments,
+                        COUNT(*) * COALESCE(u."hourlyRate",0) AS total_revenue
+                 FROM appointments a
+                 JOIN users u ON u.id = a."professionalId"
+                 WHERE a."professionalId" = $1`,
+                [proId],
+            );
+            const stats = statsRes.rows[0];
+            res.status(200).json({
+                totalAppointments: parseInt(stats.total_appointments, 10),
+                totalRevenue: parseFloat(stats.total_revenue),
+            });
+        } catch (err) {
+            return handleError(res, 'Failed to fetch reports', err);
+        }
+    }
 }

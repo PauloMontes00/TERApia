@@ -146,18 +146,35 @@ export default function SwipeScreen() {
      * Desencadeia o pipeline assíncrono acionando o Controller (PatientController.swipe) no Backend,
      * emitindo socket e retroalimentando a interface via Toast/Snackbars em real-time.
      */
-    const handleLike = () => {
+    const handleLike = async () => {
         if (!current) return // Safety check (Anti-Null Pointer)
 
         setHistory(h => [...h, { pro: current, action: 'like' }])
 
-        // Simulação MOCK: Cria elo artificial até acoplamento em banco relacional
-        setMatches(m => [...m, { ...current, matchDate: new Date().toISOString().split('T')[0], status: 'active', nextSession: null }])
+        try {
+            const resp = await fetch('/api/patient/swipe', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('token')}` },
+                body: JSON.stringify({ toProfessionalId: current.id, direction: 'LIKE' }),
+            });
+            const body = await resp.json();
+            if (resp.ok) {
+                if (body.match) {
+                    // adiciona match se retornado
+                    setMatches(m => [...m, body.match]);
+                    addToast(`Match feito com ${current.name}! 🎉`, 'success');
+                } else {
+                    addToast(`Aviso de intenção enviado para ${current.name}! 💚`, 'success');
+                }
+            } else {
+                addToast('Falha ao enviar swipe', 'error');
+            }
+        } catch (err) {
+            console.error('swipe error', err);
+            addToast('Erro de rede ao enviar swipe', 'error');
+        }
 
-        addToast(`Aviso de intenção enviado para ${current.name}! 💚`, 'success')
-
-        // Desencapsula a pilha (Pop) e renderiza Node seguinte
-        setIndex(i => i + 1)
+        setIndex(i => i + 1);
     }
 
     /**
