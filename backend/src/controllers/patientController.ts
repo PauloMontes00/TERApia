@@ -5,6 +5,7 @@ import { AuthRequest } from '../middlewares/authMiddleware';
 import { handleError } from '../utils/error';
 import * as dbh from '../utils/dbHelpers';
 import { query } from '../config/db';
+import { processSwipe } from './swipeController';
 
 export class PatientController {
     /**
@@ -52,37 +53,11 @@ export class PatientController {
         if (!patientId) return res.status(401).json({ error: 'Unauthorized' });
 
         try {
-            const swipeId = uuidv4();
-            const now = new Date().toISOString();
-            const swipeRes = await dbh.insertSwipe({
-                id: swipeId,
-                fromId: patientId,
-                toId: toProfessionalId,
-                direction,
-                createdAt: now,
-            });
-
-            let createdMatch = null;
-            if (direction === 'LIKE') {
-                // check reciprocity: the professional already liked this patient?
-                const recip = await query(
-                    'SELECT id FROM swipes WHERE "fromId" = $1 AND "toId" = $2 AND direction = $3 LIMIT 1',
-                    [toProfessionalId, patientId, 'LIKE'],
-                );
-                if (recip.rowCount > 0) {
-                    const matchId = uuidv4();
-                    const matchRes = await dbh.insertMatch({
-                        id: matchId,
-                        patientId,
-                        professionalId: toProfessionalId,
-                        status: 'ACCEPTED',
-                    });
-                    createdMatch = matchRes.rows[0];
-                    io.to(toProfessionalId).emit('match_status_update', { matchId, status: 'ACCEPTED', professionalId: toProfessionalId });
-                }
+            const result = await processSwipe(patientId, toProfessionalId, direction);
+            if (result.match) {
+                io.to(toProfessionalId).emit('match_status_update', { matchId: result.match.id, status: 'ACCEPTED', professionalId: toProfessionalId });
             }
-
-            res.status(201).json({ swipe: swipeRes.rows[0], match: createdMatch });
+            res.status(201).json(result);
         } catch (err) {
             return handleError(res, 'Failed to record swipe', err);
         }
