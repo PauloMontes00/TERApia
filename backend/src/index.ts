@@ -7,6 +7,7 @@ import http from 'http';
 import { Server } from 'socket.io';
 import cors from 'cors';
 import './config/db';
+import { testConnection } from './config/db';
 
 import authRoutes from './routes/authRoutes';
 import patientRoutes from './routes/patientRoutes';
@@ -47,15 +48,19 @@ io.on('connection', (socket) => {
     });
 });
 
-// Basic health check
+// Rota simples de verificação de saúde (health check)
 app.get('/health', (req, res) => {
     res.json({ status: 'ok', time: new Date().toISOString() });
 });
 
 const PORT = process.env.PORT || 3000;
 
-server.listen(PORT, () => {
+server.listen(PORT, async () => {
     console.log(`Server running on port ${PORT}`);
+    const ok = await testConnection();
+    if (!ok) {
+        console.error('Unable to verify database connectivity during startup');
+    }
 });
 
 export { io };

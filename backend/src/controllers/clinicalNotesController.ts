@@ -2,6 +2,8 @@ import { Response } from 'express';
 import { query } from '../config/db';
 import { AuthRequest } from '../middlewares/authMiddleware';
 import { EncryptionService } from '../services/encryptionService';
+import { handleError } from '../utils/error';
+import * as dbh from '../utils/dbHelpers';
 
 export class ClinicalNotesController {
     /**
@@ -19,10 +21,7 @@ export class ClinicalNotesController {
         try {
             // Híbrido de Autorização (B-AC/RBAC): Garante que a anotação só é permitida 
             // no escopo de um Vínculo Terapêutico (Match Ativo = ACCEPTED).
-            const matchRes = await query(
-                'SELECT * FROM matches WHERE "patientId" = $1 AND "professionalId" = $2 LIMIT 1',
-                [patientId, proId],
-            );
+            const matchRes = await dbh.getMatch(patientId, proId);
             const match = matchRes.rows[0];
 
             if (!match || match.status !== 'ACCEPTED') return res.status(403).json({ error: 'Unauthorized to write notes for this patient' });
@@ -36,7 +35,7 @@ export class ClinicalNotesController {
 
             res.status(201).json({ ...insert.rows[0], content: '[ENCRYPTED]' });
         } catch (err) {
-            res.status(500).json({ error: 'Failed to create clinical note' });
+            return handleError(res, 'Failed to create clinical note', err);
         }
     }
 
@@ -60,7 +59,7 @@ export class ClinicalNotesController {
             const decryptedNotes = notes.map((note: any) => ({ ...note, content: EncryptionService.decrypt(note.content) }));
             res.status(200).json(decryptedNotes);
         } catch (err) {
-            res.status(500).json({ error: 'Failed to fetch clinical notes' });
+            return handleError(res, 'Failed to fetch clinical notes', err);
         }
     }
 }

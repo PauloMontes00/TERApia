@@ -1,8 +1,9 @@
 import { Response } from 'express';
 import { io } from '../index'; // io é a instância do Socket.io para comunicação em tempo real
-import { query } from '../config/db';
 import { v4 as uuidv4 } from 'uuid';
 import { AuthRequest } from '../middlewares/authMiddleware';
+import { handleError } from '../utils/error';
+import * as dbh from '../utils/dbHelpers';
 
 export class PatientController {
     /**
@@ -13,13 +14,10 @@ export class PatientController {
      */
     static async discover(req: AuthRequest, res: Response) {
         try {
-            const resPros = await query(
-                'SELECT id, name, avatar, bio, specialties, "hourlyRate", rating FROM users WHERE role = $1',
-                ['PROFESSIONAL'],
-            );
+            const resPros = await dbh.getProfessionals();
             res.status(200).json(resPros.rows);
         } catch (err) {
-            res.status(500).json({ error: 'Failed to fetch professionals' });
+            return handleError(res, 'Failed to fetch professionals', err);
         }
     }
 
@@ -40,24 +38,29 @@ export class PatientController {
         try {
             const swipeId = uuidv4();
             const now = new Date().toISOString();
-            const swipeRes = await query(
-                'INSERT INTO swipes(id, "fromId", "toId", direction, "createdAt") VALUES($1,$2,$3,$4,$5) RETURNING *',
-                [swipeId, patientId, toProfessionalId, direction, now],
-            );
+            const swipeRes = await dbh.insertSwipe({
+                id: swipeId,
+                fromId: patientId,
+                toId: toProfessionalId,
+                direction,
+                createdAt: now,
+            });
 
             if (direction === 'LIKE') {
                 const matchId = uuidv4();
-                const matchRes = await query(
-                    'INSERT INTO matches(id, "patientId", "professionalId", status, "createdAt", "updatedAt") VALUES($1,$2,$3,$4,now(),now()) RETURNING *',
-                    [matchId, patientId, toProfessionalId, 'PENDING'],
-                );
+                const matchRes = await dbh.insertMatch({
+                    id: matchId,
+                    patientId,
+                    professionalId: toProfessionalId,
+                    status: 'PENDING',
+                });
 
                 io.to(toProfessionalId).emit('new_pending_match', { matchId: matchRes.rows[0].id, patientId });
             }
 
             res.status(201).json(swipeRes.rows[0]);
         } catch (err) {
-            res.status(500).json({ error: 'Failed to record swipe' });
+            return handleError(res, 'Failed to record swipe', err);
         }
     }
 }

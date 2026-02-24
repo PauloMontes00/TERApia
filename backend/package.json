@@ -8,7 +8,9 @@
     "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js",
-    "db:test": "node ../teste.cennectingDB"
+    "db:init": "ts-node src/utils/runDbInit.ts",
+    "db:test": "node ../teste.cennectingDB",
+    "diag": "ts-node src/utils/diagnostic.ts"
   },
   "keywords": [],
   "author": "",

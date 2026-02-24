@@ -1,7 +1,9 @@
 import { Response } from 'express';
 import { io } from '../index';
-import { query } from '../config/db';
 import { AuthRequest } from '../middlewares/authMiddleware';
+import { handleError } from '../utils/error';
+import { query } from '../config/db';
+import * as dbh from '../utils/dbHelpers';
 
 export class ProController {
     /**
@@ -23,7 +25,7 @@ export class ProController {
             );
             res.status(200).json(resUpd.rows[0]);
         } catch (err) {
-            res.status(500).json({ error: 'Failed to update profile' });
+            return handleError(res, 'Failed to update profile', err);
         }
     }
 
@@ -44,7 +46,7 @@ export class ProController {
             );
             res.status(200).json(resMatches.rows);
         } catch (err) {
-            res.status(500).json({ error: 'Failed to fetch pending matches' });
+            return handleError(res, 'Failed to fetch pending matches', err);
         }
     }
 
@@ -69,7 +71,7 @@ export class ProController {
             io.to(match.patientId).emit('match_status_update', { matchId, status, professionalId: proId });
             res.status(200).json(match);
         } catch (err) {
-            res.status(500).json({ error: 'Failed to respond to match' });
+            return handleError(res, 'Failed to respond to match', err);
         }
     }
 }
