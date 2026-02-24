@@ -5,13 +5,15 @@ import { useApp } from '../../context/AppContext'
 
 export default function ProDashboard() {
     const navigate = useNavigate()
-    // Extrai pacientes vinculados a mim pelo Contexto e a função para aprova-los
-    const { patients, acceptPatient, declinePatient } = useApp()
+    // Extrai pacientes (na verdade itens de "matches") e função para responder
+    const { patients, respondToMatch } = useApp()
 
     // Sistema dinâmico de Array: Divide a lista bruta (que virá do banco de dados Node)
     // Em listas filtradas por status na mosca.
-    const pending = patients.filter(p => p.pending)
-    const active = patients.filter(p => !p.pending)
+    // aqui `patients` contém objetos retornados pelo backend; cada um possui
+    // `status` e campos como `patient_name` e `patient_avatar`.
+    const pending = patients.filter(p => p.status === 'PENDING')
+    const active = patients.filter(p => p.status && p.status !== 'PENDING')
 
     // Estrutura de Métricas Visuais mapeada dinamicamente pelo JSX depois
     const stats = [
@@ -62,17 +64,19 @@ export default function ProDashboard() {
                         {pending.map(p => (
                             <motion.div key={p.id} className="card" style={{ padding: 'var(--sp-lg)' }} initial={{ opacity: 0, x: -12 }} animate={{ opacity: 1, x: 0 }}>
                                 <div className="flex items-center gap-md" style={{ marginBottom: 'var(--sp-md)' }}>
-                                    <div className="avatar avatar-md" style={{ background: p.color }}>{p.initials}</div>
+                                    <div className="avatar avatar-md" style={{ background: '#666' }}>
+                                        {p.patient_name ? p.patient_name[0] : ''}
+                                    </div>
                                     <div style={{ flex: 1 }}>
-                                        <div style={{ fontFamily: 'var(--font-heading)', fontWeight: 700 }}>{p.name}</div>
-                                        <div style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>{p.age} anos · Aguardando match</div>
+                                        <div style={{ fontFamily: 'var(--font-heading)', fontWeight: 700 }}>{p.patient_name}</div>
+                                        <div style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>Aguardando match</div>
                                     </div>
                                 </div>
                                 <div className="flex gap-sm">
-                                    <button className="btn btn-danger btn-sm" style={{ flex: 1 }} onClick={() => declinePatient(p.id)} id={`decline-${p.id}`}>
+                                    <button className="btn btn-danger btn-sm" style={{ flex: 1 }} onClick={() => respondToMatch(p.id, 'DECLINED')} id={`decline-${p.id}`}>
                                         <X size={14} /> Recusar
                                     </button>
-                                    <button className="btn btn-primary btn-sm" style={{ flex: 1 }} onClick={() => acceptPatient(p.id)} id={`accept-${p.id}`}>
+                                    <button className="btn btn-primary btn-sm" style={{ flex: 1 }} onClick={() => respondToMatch(p.id, 'ACCEPTED')} id={`accept-${p.id}`}>
                                         <Check size={14} /> Aceitar
                                     </button>
                                 </div>

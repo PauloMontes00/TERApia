@@ -129,7 +129,7 @@ function ProCard({ pro, onLike, onPass, isTop }) {
 
 export default function SwipeScreen() {
     const navigate = useNavigate()
-    const { professionals, matches, setMatches, addToast } = useApp()
+    const { professionals, matches, setMatches, swipe, addToast } = useApp()
 
     // Ponteiro Lógico da Pilha de Cartões (Stack Pointer)
     const [index, setIndex] = useState(0)
@@ -152,26 +152,15 @@ export default function SwipeScreen() {
         setHistory(h => [...h, { pro: current, action: 'like' }])
 
         try {
-            const resp = await fetch('/api/patient/swipe', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('token')}` },
-                body: JSON.stringify({ toProfessionalId: current.id, direction: 'LIKE' }),
-            });
-            const body = await resp.json();
-            if (resp.ok) {
-                if (body.match) {
-                    // adiciona match se retornado
-                    setMatches(m => [...m, body.match]);
-                    addToast(`Match feito com ${current.name}! 🎉`, 'success');
-                } else {
-                    addToast(`Aviso de intenção enviado para ${current.name}! 💚`, 'success');
-                }
+            const body = await swipe(current.id, 'LIKE');
+            if (body.match) {
+                addToast(`Match feito com ${current.name}! 🎉`, 'success');
             } else {
-                addToast('Falha ao enviar swipe', 'error');
+                addToast(`Aviso de intenção enviado para ${current.name}! 💚`, 'success');
             }
         } catch (err) {
+            // swipe já cria toast de erro
             console.error('swipe error', err);
-            addToast('Erro de rede ao enviar swipe', 'error');
         }
 
         setIndex(i => i + 1);
@@ -180,9 +169,14 @@ export default function SwipeScreen() {
     /**
      * Resolução Negativa (PASS) - Descarta sem persistência agressiva.
      */
-    const handlePass = () => {
+    const handlePass = async () => {
         if (!current) return
         setHistory(h => [...h, { pro: current, action: 'pass' }])
+        try {
+            await swipe(current.id, 'PASS');
+        } catch (err) {
+            console.error('pass error', err);
+        }
         setIndex(i => i + 1)
     }
 

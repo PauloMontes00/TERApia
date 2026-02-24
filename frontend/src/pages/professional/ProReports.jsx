@@ -1,18 +1,18 @@
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { TrendingUp, Users, Calendar, Download, ChevronRight, PieChart, BarChart2 } from 'lucide-react'
+import { authFetch, useApp } from '../../context/AppContext'
 
 export default function ProReports() {
     const [stats, setStats] = useState([]);
     const [transactions, setTransactions] = useState([]);
 
+    const { addToast } = useApp();
+
     useEffect(() => {
         const fetchReports = async () => {
             try {
-                const res = await fetch('/api/pro/reports', {
-                    headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
-                });
-                if (!res.ok) throw new Error('Failed to fetch reports');
+                const res = await authFetch('/api/pro/reports');
                 const data = await res.json();
                 setStats([
                     { label: 'Receita Total', value: `R$ ${data.totalRevenue.toFixed(2)}`, sub: '', color: 'var(--color-primary)' },
@@ -21,10 +21,11 @@ export default function ProReports() {
                 // optionally fetch transactions list? require endpoint; skip for now
             } catch (err) {
                 console.error(err);
+                addToast(err.message || 'Falha ao carregar relatórios', 'error');
             }
         };
         fetchReports();
-    }, []);
+    }, [addToast]);
 
     return (
         <div>

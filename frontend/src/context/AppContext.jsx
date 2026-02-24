@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect } from 'react'
+import { createContext, useContext, useState, useEffect, useRef } from 'react'
 
 /**
  * AppContext: gerenciamento global do frontend com conexão real à API.
@@ -6,10 +6,13 @@ import { createContext, useContext, useState, useEffect } from 'react'
  */
 const AppContext = createContext(null)
 
-// helper para requisições autenticadas; usa token do estado
-function authFetch(path, options = {}) {
+// helper para requisições autenticadas; usa token do localStorage
+// devolve a `Response` quando sucesso e rejeita com um Error em caso de
+// status >= 400. O objeto Error contém `status` e mensagem extraída do
+// corpo JSON/texto para auxiliar na depuração.
+async function authFetch(path, options = {}) {
     const token = localStorage.getItem('token');
-    return fetch(path, {
+    const res = await fetch(path, {
         ...options,
         headers: {
             'Content-Type': 'application/json',
@@ -17,6 +20,22 @@ function authFetch(path, options = {}) {
             ...options.headers,
         },
     });
+    if (!res.ok) {
+        let text;
+        try { text = await res.text(); } catch { text = ''; }
+        let message = res.statusText;
+        try {
+            const json = JSON.parse(text);
+            if (json && json.error) message = json.error;
+        } catch {}
+        const err = new Error(message || `HTTP ${res.status}`);
+        // anexa o status para quem precisar
+        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+        // @ts-ignore
+        err.status = res.status;
+        throw err;
+    }
+    return res;
 }
 
 export function AppProvider({ children }) {
@@ -26,15 +45,23 @@ export function AppProvider({ children }) {
     // autenticação/token
     const [user, setUser] = useState(null) // { id, name, email, role }
 
-    // restore from localStorage on mount
+    // restaurar usuário e token do localStorage
     useEffect(() => {
         const stored = localStorage.getItem('user');
+        const token = localStorage.getItem('token');
         if (stored) {
             try {
                 const u = JSON.parse(stored);
                 setUser(u);
                 setUserType(u.role.toLowerCase());
-            } catch {};
+            } catch (e) {
+                console.warn('Failed to parse stored user', e);
+                localStorage.removeItem('user');
+            }
+        }
+        if (token && token !== '' && !localStorage.getItem('token')) {
+            // já está guardado, mas se fosse outro estado também poderia ser
+            localStorage.setItem('token', token);
         }
     }, []);
 
@@ -48,77 +75,178 @@ export function AppProvider({ children }) {
 
     // Sistema global de Toasts (Avisos efêmeros no canto da tela)
     const [toasts, setToasts] = useState([])
+    const toastTimeouts = useRef({});
 
     /**
      * Função auxiliar genérica para disparar Toasts visuais a partir de qualquer página.
      * Ela insere na fila e apaga automaticamente após 3.5 segundos.
      */
     const addToast = (message, type = 'info') => {
-        const id = Date.now()
-        setToasts(prev => [...prev, { id, message, type }])
-        setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 3500)
-    }
+        const id = Date.now();
+        setToasts(prev => [...prev, { id, message, type }]);
+        const t = setTimeout(() => {
+            setToasts(prev => prev.filter(t => t.id !== id));
+            delete toastTimeouts.current[id];
+        }, 3500);
+        toastTimeouts.current[id] = t;
+        return id;
+    };
+
+    // limpa timeouts quando o provedor desmontar
+    useEffect(() => {
+        return () => {
+            Object.values(toastTimeouts.current).forEach(clearTimeout);
+            toastTimeouts.current = {};
+        };
+    }, []);
 
     // --- Autenticação real ---
     const login = async (email, password) => {
-        const res = await fetch('/api/auth/login', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email, password }),
-        });
-        if (!res.ok) throw new Error('Login failed');
-        const data = await res.json();
-        setUser(data.user);
-        setUserType(data.user.role.toLowerCase());
-        localStorage.setItem('token', data.token);
-        localStorage.setItem('user', JSON.stringify(data.user));
-        return data.user;
+        try {
+            const res = await authFetch('/api/auth/login', {
+                method: 'POST',
+                body: JSON.stringify({ email, password }),
+            });
+            const data = await res.json();
+            setUser(data.user);
+            setUserType(data.user.role.toLowerCase());
+            localStorage.setItem('token', data.token);
+            localStorage.setItem('user', JSON.stringify(data.user));
+            return data.user;
+        } catch (err) {
+            addToast(err.message || 'Erro no login', 'error');
+            throw err;
+        }
     };
 
     const logout = () => {
         setUser(null);
         setUserType(null);
         localStorage.removeItem('token');
+        localStorage.removeItem('user');
     };
 
     // --- fetchers ---
     useEffect(() => {
         // quando muda userType, buscar dados iniciais
+        let cancelled = false;
         const fetchData = async () => {
             try {
                 if (userType === 'patient') {
                     const proRes = await authFetch('/api/patient/discover');
                     const proJson = await proRes.json();
-                    setProfessionals(proJson);
+                    if (!cancelled) {
+                        // mapeia a resposta para o formato esperado pela UI antiga
+                        const normalized = (proJson || []).map(p => {
+                            const name = p.name || '';
+                            const initials = name.split(' ').map(n => n[0]).join('').toUpperCase();
+                            const hue = name
+                                .split('')
+                                .reduce((h, c) => (h + c.charCodeAt(0)) % 360, 0);
+                            const color = `hsl(${hue},60%,50%)`;
+                            return {
+                                ...p,
+                                initials,
+                                color,
+                                available: true,
+                                specialty: Array.isArray(p.specialties) && p.specialties.length ? p.specialties[0] : '',
+                                price: p.hourlyRate || 0,
+                                crp: p.crp || '',
+                            };
+                        });
+                        setProfessionals(normalized);
+                    }
 
                     const matchRes = await authFetch('/api/patient/matches');
                     const matchJson = await matchRes.json();
-                    setMatches(matchJson);
+                    if (!cancelled) {
+                        const norm = (matchJson || []).map(m => {
+                            const name = m.professional_name || '';
+                            const initials = name.split(' ').map(n => n[0]).join('').toUpperCase();
+                            const hue = name
+                                .split('')
+                                .reduce((h, c) => (h + c.charCodeAt(0)) % 360, 0);
+                            const color = `hsl(${hue},60%,50%)`;
+                            return {
+                                ...m,
+                                name,
+                                initials,
+                                color,
+                                specialty: '',
+                                price: m.hourlyRate || 0,
+                                available: true,
+                            };
+                        });
+                        setMatches(norm);
+                    }
                 } else if (userType === 'professional') {
                     const pendingRes = await authFetch('/api/pro/pending-matches');
                     const pendingJson = await pendingRes.json();
-                    setMatches(pendingJson);
+                    if (!cancelled) {
+                        const norm = (pendingJson || []).map(m => {
+                            const name = m.patient_name || '';
+                            const initials = name.split(' ').map(n => n[0]).join('').toUpperCase();
+                            const hue = name
+                                .split('')
+                                .reduce((h, c) => (h + c.charCodeAt(0)) % 360, 0);
+                            const color = `hsl(${hue},60%,50%)`;
+                            return { ...m, initials, color };
+                        });
+                        setMatches(norm);
+                        setPatients(norm);
+                    }
                 }
             } catch (err) {
-                console.error('Failed to fetch initial data', err);
-                addToast('Erro ao carregar dados iniciais', 'error');
+                if (err.status === 401) {
+                    logout();
+                    addToast('Sessão expirada, faça login novamente', 'error');
+                } else {
+                    console.error('Failed to fetch initial data', err);
+                    addToast('Erro ao carregar dados iniciais', 'error');
+                }
             }
         };
         if (userType) fetchData();
+        return () => {
+            cancelled = true;
+        };
     }, [userType]);
 
     /**
-     * Funções que simulam as chamadas para o controller 'proController.respondToMatch' no Backend.
+     * Chamadas à API para ações de swipe / resposta de match
      */
-    const acceptPatient = (patientId) => {
-        setPatients(prev => prev.map(p => p.id === patientId ? { ...p, pending: false, status: 'active' } : p))
-        addToast('Match aceito! O paciente foi notificado.', 'success')
-    }
+    const swipe = async (toProfessionalId, direction) => {
+        try {
+            const res = await authFetch('/api/patient/swipe', {
+                method: 'POST',
+                body: JSON.stringify({ toProfessionalId, direction }),
+            });
+            const body = await res.json();
+            if (direction === 'LIKE' && body.match) {
+                setMatches(prev => [...prev, body.match]);
+            }
+            return body;
+        } catch (err) {
+            addToast(err.message || 'Erro ao enviar swipe', 'error');
+            throw err;
+        }
+    };
 
-    const declinePatient = (patientId) => {
-        setPatients(prev => prev.filter(p => p.id !== patientId))
-        addToast('Solicitação recusada.', 'info')
-    }
+    const respondToMatch = async (matchId, status) => {
+        try {
+            const res = await authFetch('/api/pro/respond', {
+                method: 'POST',
+                body: JSON.stringify({ matchId, status }),
+            });
+            const updated = await res.json();
+            setMatches(prev => prev.filter(m => m.id !== matchId));
+            setPatients(prev => prev.filter(p => p.id !== matchId));
+            return updated;
+        } catch (err) {
+            addToast(err.message || 'Erro ao responder ao match', 'error');
+            throw err;
+        }
+    };
 
     return (
         // Provedor que "derrama" todas essas funções e variáveis para os componentes filhos (rotas)
@@ -133,8 +261,8 @@ export function AppProvider({ children }) {
             setMatches,
             patients,
             setPatients,
-            acceptPatient,
-            declinePatient,
+            swipe,
+            respondToMatch,
             notifications,
             setNotifications,
             toasts,
@@ -150,10 +278,16 @@ export function AppProvider({ children }) {
  * Usado dentro das páginas (ex: Profile, Dashboard) para capturar imediatamente
  * as funções do AppContext sem precisar rescrever o `useContext(AppContext)`.
  */
+
 export function useApp() {
+
     const ctx = useContext(AppContext)
+    
     if (!ctx) throw new Error('useApp must be used within AppProvider')
     return ctx
 }
 
-export { AppProvider }
+// exporta auxiliar para quando não houver hook disponível
+export { authFetch }
+
+

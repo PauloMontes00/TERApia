@@ -6,17 +6,25 @@ import { useApp } from '../../context/AppContext'
 export default function ProfessionalProfile() {
     const { id } = useParams()
     const navigate = useNavigate()
-    const { professionals, matches, setMatches, addToast } = useApp()
+    const { professionals, matches, swipe, addToast } = useApp()
 
     const pro = professionals.find(p => p.id === id) || professionals[0]
-    const isMatched = matches.some(m => m.id === pro.id)
+    const isMatched = matches.some(m => m.professional_id === pro.id)
 
-    const handleLike = () => {
+    const handleLike = async () => {
         if (!isMatched) {
-            setMatches(m => [...m, { ...pro, matchDate: new Date().toISOString().split('T')[0], status: 'active', nextSession: null }])
-            addToast(`Match com ${pro.name}! 💚`, 'success')
+            try {
+                const body = await swipe(pro.id, 'LIKE');
+                if (body.match) {
+                    addToast(`Match com ${pro.name}! 💚`, 'success');
+                } else {
+                    addToast(`Aviso de intenção enviado para ${pro.name}! 💚`, 'success');
+                }
+            } catch (err) {
+                // swipe already mostrou toast de erro
+            }
         }
-        navigate('/patient/matches')
+        navigate('/patient/matches');
     }
 
     if (!pro) return null
