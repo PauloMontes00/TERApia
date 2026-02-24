@@ -8,6 +8,7 @@ import { Server } from 'socket.io';
 import cors from 'cors';
 import './config/db';
 import { testConnection } from './config/db';
+import path from 'path';
 
 import authRoutes from './routes/authRoutes';
 import patientRoutes from './routes/patientRoutes';
@@ -15,6 +16,16 @@ import proRoutes from './routes/proRoutes';
 import appointmentRoutes from './routes/appointmentRoutes';
 
 const app = express();
+
+// em produção, serve os arquivos estáticos do frontend build
+if (process.env.NODE_ENV === 'production') {
+    const frontendPath = path.resolve(__dirname, '../..', 'frontend', 'dist');
+    app.use(express.static(frontendPath));
+    app.get('*', (_req, res) => {
+        res.sendFile(path.join(frontendPath, 'index.html'));
+    });
+}
+
 const server = http.createServer(app);
 const io = new Server(server, {
     cors: {
